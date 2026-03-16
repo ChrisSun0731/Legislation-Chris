@@ -25,7 +25,7 @@
             v-if="(!endpoint.requireAuth || loggedIn) && (endpoint.requireRole === undefined || hasRole(endpoint.requireRole))"
             v-ripple
             :active="selected === endpoint.name"
-            :to="endpoint.url"
+            v-bind="endpointLinkProps(endpoint)"
             :title="endpoint.name"
             role="link"
             @click="changeSelected(endpoint.name)"
@@ -82,11 +82,20 @@ import { init, loggedInUserClaims, login, logout, useCurrentUser } from 'src/ts/
 import { Dark, LocalStorage } from 'quasar';
 import { DocumentSpecificIdentity } from '../ts/models.ts';
 
+type Endpoint = {
+  name: string;
+  url: string;
+  icon: string;
+  requireAuth: boolean;
+  external?: boolean;
+  requireRole?: DocumentSpecificIdentity[];
+};
+
 onMounted(() => {
   init();
 });
 const leftDrawerOpen = ref(false);
-const endpoints = [
+const endpoints: Endpoint[] = [
   { name: '檢視法令', url: '/legislation', icon: 'gavel', requireAuth: false },
   { name: '檢視公文', url: '/document', icon: 'description', requireAuth: false },
   { name: '編輯法令', url: '/manage/legislation', icon: 'edit', requireAuth: true },
@@ -99,6 +108,7 @@ const endpoints = [
     requireAuth: true,
     requireRole: [DocumentSpecificIdentity.Chairman, DocumentSpecificIdentity.Speaker, DocumentSpecificIdentity.JudicialCommitteeChairman],
   },
+  { name: '聲請平台', url: 'https://cksc-jc.notion.site/38a4465929c78260b6d681378aba8efc', icon: 'gavel', external: true, requireAuth: false },
   { name: '關於與使用條款', url: '/about', icon: 'info', requireAuth: false },
 ];
 const selected = ref('Account Information');
@@ -118,7 +128,25 @@ function toggleDark() {
 }
 
 function changeSelected(name: string) {
+  const isExternal = endpoints.some((e) => e.name === name && e.external === true);
+  if (isExternal) {
+    return;
+  }
   selected.value = name;
+}
+
+function endpointLinkProps(endpoint: { url: string; external?: boolean }) {
+  if (endpoint.external) {
+    return {
+      href: endpoint.url,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    };
+  }
+
+  return {
+    to: endpoint.url,
+  };
 }
 
 function toggleFullscreen() {
