@@ -191,11 +191,11 @@ import { useRoute, useRouter } from 'vue-router';
 import type { LegislationCategory, LegislationHistory, ResolutionUrl } from 'src/ts/models.ts';
 import * as models from 'src/ts/models.ts';
 import { ContentType, convertContentToFirebase } from 'src/ts/models.ts';
-import { legislationDocument, useLegislation } from 'src/ts/model-converters.ts';
+import { historyContentDocument, legislationDocument, useLegislation } from 'src/ts/model-converters.ts';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
-import { copyLink, notifyError, notifySuccess, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
+import { copyLink, generateHistoryContentId, notifyError, notifySuccess, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
 import { date, Dialog, Loading } from 'quasar';
-import { arrayRemove, arrayUnion, deleteDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { VueDraggable } from 'vue-draggable-plus';
 import type { Ref } from 'vue';
 import { reactive, ref, computed } from 'vue';
@@ -219,6 +219,7 @@ interface EditingLegislationHistory extends LegislationHistory {
 
 const route = useRoute();
 const router = useRouter();
+
 const legislation = useLegislation(route.params.id! as string);
 const targetContent = reactive({} as EditingLegislationContent);
 const targetAddendum = reactive({} as { content: string[]; createdAt: string; index: number });
@@ -278,7 +279,7 @@ function addHistory() {
   targetHistory.brief = '';
   targetHistory.link = '';
   targetHistory.recordCurrent = true;
-  targetHistory.content = [];
+  targetHistory.contentId = undefined;
   targetHistory.totalAmendment = false;
   historyAction.value = 'add';
 }
@@ -309,7 +310,6 @@ function editHistory(history: models.LegislationHistory) {
   targetHistory.link = history.link ?? '';
   targetHistory.recordCurrent = false;
   targetHistory.index = legislation.value!.history.indexOf(history);
-  targetHistory.content = history.content?.slice() ?? []; // Clone
   historyAction.value = 'edit';
 }
 
@@ -477,10 +477,10 @@ async function submitAddendum() {
 
 async function submitHistory(skipCheck: boolean = false) {
   if (!skipCheck && historyLinkRef.value?.validate() !== true) return;
+  const id = route.params.id! as string;
   const mappedHistory = {
     amendedAt: date.extractDate(targetHistory.rawAmendedAt, 'YYYY-MM-DD'),
     brief: targetHistory.brief,
-    content: targetHistory.content,
   } as models.LegislationHistory;
   if (targetHistory.link) {
     mappedHistory.link = targetHistory.link;
@@ -488,14 +488,20 @@ async function submitHistory(skipCheck: boolean = false) {
   if (targetHistory.totalAmendment) {
     mappedHistory.totalAmendment = targetHistory.totalAmendment;
   }
-  if (targetHistory.recordCurrent) {
-    mappedHistory.content = legislation.value!.content;
+  if (targetHistory.recordCurrent && legislation.value!.content.length > 0) {
+    const existingIds = legislation.value!.history.map((h) => h.contentId).filter((cid): cid is string => !!cid);
+    const contentId = generateHistoryContentId(new Date(), existingIds);
+    await setDoc(historyContentDocument(id, contentId), {
+      content: legislation.value!.content.map(convertContentToFirebase),
+    });
+    mappedHistory.contentId = contentId;
+  } else if (targetHistory.contentId) {
+    mappedHistory.contentId = targetHistory.contentId;
   }
   await submitProperty(
     historyAction,
     async () => {
-      mappedHistory.content = mappedHistory.content?.map(convertContentToFirebase);
-      await updateDoc(legislationDocument(route.params.id! as string), {
+      await updateDoc(legislationDocument(id), {
         history: arrayUnion(mappedHistory),
       });
     },
@@ -503,13 +509,12 @@ async function submitHistory(skipCheck: boolean = false) {
       legislation.value!.history[targetHistory.index] = mappedHistory;
       const newHistory = legislation
         .value!.history.map((h) => {
-          const copy = { ...h };
-          copy.content = copy.content?.map(convertContentToFirebase) ?? [];
+          const copy = { ...h } as any;
           if (!copy.totalAmendment) delete copy.totalAmendment;
           return copy;
         })
-        .slice(0); // Copying the array prevents firebase changing it midway for some reason
-      await updateDoc(legislationDocument(route.params.id! as string), { history: newHistory });
+        .slice(0);
+      await updateDoc(legislationDocument(id), { history: newHistory });
     },
   );
 }
@@ -599,8 +604,6 @@ function removeAddendum(addendum: models.Addendum) {
 }
 
 function removeHistory(history: models.LegislationHistory) {
-  const copy = { ...history };
-  copy.content = copy.content?.map(convertContentToFirebase);
   removeProperty('history', history, '立法沿革');
 }
 

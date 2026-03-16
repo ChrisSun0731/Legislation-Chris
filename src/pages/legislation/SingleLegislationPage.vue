@@ -32,10 +32,10 @@
             <th>{{ history.brief }}</th>
             <th class="no-print">
               <div class="history-actions">
-                <q-btn v-if="history.content?.length" dense flat icon="compare_arrows" size="10px" @click="openHistoryDiff(history)">
+                <q-btn v-if="history.contentId" dense flat icon="compare_arrows" size="10px" @click="openHistoryDiff(history)">
                   <q-tooltip>檢視修正差異</q-tooltip>
                 </q-btn>
-                <q-btn v-if="history.content?.length" dense flat icon="merge_type" size="10px" @click="openHistoryDiff(history, 'current')">
+                <q-btn v-if="history.contentId" dense flat icon="merge_type" size="10px" @click="openHistoryDiff(history, 'current')">
                   <q-tooltip>比較目前版本</q-tooltip>
                 </q-btn>
                 <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
@@ -92,6 +92,7 @@
     v-model="historyDiffDialog"
     :compare-target="diffCompareTarget"
     :current-content="legislation?.content ?? []"
+    :legislation-id="route.params.id as string"
     :selected-history="selectedHistory"
     :sorted-history="sortedHistory"
   />

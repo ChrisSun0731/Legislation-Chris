@@ -512,7 +512,7 @@ export function convertContentFromFirebase(data: any) {
 }
 
 export interface LegislationHistory {
-  content?: LegislationContent[];
+  contentId?: string;
   brief: string;
   amendedAt: Date;
   link?: string;

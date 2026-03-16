@@ -76,7 +76,6 @@ export const legislationConverter: FirestoreDataConverter<Legislation | null> = 
       createdAt: Timestamp.fromDate(legislation.createdAt),
       name: legislation.name,
       history: legislation.history.map((history) => {
-        history.content?.map(convertContentToFirebase).sort((a, b) => a.index - b.index);
         history.amendedAt = Timestamp.fromDate(history.amendedAt) as any;
         if (!history.totalAmendment) delete history.totalAmendment;
         return history;
@@ -103,7 +102,6 @@ export const legislationConverter: FirestoreDataConverter<Legislation | null> = 
     data.createdAt = data.createdAt.toDate();
     data.type = LegislationType.VALUES[data.type as keyof typeof LegislationType.VALUES];
     data.history = data.history.map((history: any) => {
-      history.content = history.content?.map(convertContentFromFirebase);
       history.amendedAt = history.amendedAt.toDate();
       history.totalAmendment = !!history.totalAmendment;
       return history;
@@ -122,6 +120,10 @@ export function legislationCollection() {
 
 export function legislationDocument(id: string) {
   return doc(legislationCollection(), id).withConverter(legislationConverter);
+}
+
+export function historyContentDocument(legislationId: string, contentDocId: string) {
+  return doc(useFirestore(), 'legislation', legislationId, 'historyContent', contentDocId);
 }
 
 export function useLegislations() {

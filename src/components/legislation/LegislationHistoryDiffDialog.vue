@@ -13,34 +13,42 @@
         </div>
       </q-card-section>
       <q-card-section v-if="selectedHistory" class="q-pt-none">
-        <div v-if="compareTarget === 'previous' && !baselineSnapshotExists" class="text-caption text-grey-7 q-mb-md">
-          找不到更早版本的內容快照，以下差異以空白版本為基準。
+        <div v-if="isLoading" class="flex flex-center q-pa-lg">
+          <q-spinner color="primary" size="40px" />
         </div>
-        <q-no-ssr>
-          <CodeDiff
-            :context="5"
-            diff-style="char"
-            :filename="truncatedPreviousSnapshotLabel"
-            language="plaintext"
-            max-height="70vh"
-            :new-filename="truncatedSelectedSnapshotLabel"
-            :new-string="selectedSnapshotText"
-            no-diff-line-feed
-            :old-string="baselineSnapshotText"
-            output-format="side-by-side"
-            :theme="Dark.isActive ? 'dark' : 'light'"
-            force-inline-comparison
-          />
-        </q-no-ssr>
+        <template v-else>
+          <div v-if="compareTarget === 'previous' && !baselineSnapshotExists" class="text-caption text-grey-7 q-mb-md">
+            找不到更早版本的內容快照，以下差異以空白版本為基準。
+          </div>
+          <q-no-ssr>
+            <CodeDiff
+              :context="5"
+              diff-style="char"
+              :filename="truncatedPreviousSnapshotLabel"
+              language="plaintext"
+              max-height="70vh"
+              :new-filename="truncatedSelectedSnapshotLabel"
+              :new-string="selectedSnapshotText"
+              no-diff-line-feed
+              :old-string="baselineSnapshotText"
+              output-format="side-by-side"
+              :theme="Dark.isActive ? 'dark' : 'light'"
+              force-inline-comparison
+            />
+          </q-no-ssr>
+        </template>
       </q-card-section>
     </q-card>
   </q-dialog>
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Dark } from 'quasar';
 import { CodeDiff } from 'v-code-diff';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { firebaseApp } from 'src/boot/vuefire.ts';
+import { convertContentFromFirebase } from 'src/ts/models.ts';
 import type { LegislationContent as LegislationContentModel, LegislationHistory, ResolutionUrl } from 'src/ts/models.ts';
 
 const props = defineProps<{
@@ -49,6 +57,7 @@ const props = defineProps<{
   compareTarget: 'previous' | 'current';
   sortedHistory: LegislationHistory[];
   currentContent: LegislationContentModel[];
+  legislationId: string;
 }>();
 
 const emit = defineEmits<{
@@ -60,26 +69,66 @@ const dialogModel = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 });
 
-const previousHistory = computed(() => {
-  if (props.compareTarget === 'current') {
-    return null;
+const contentCache = ref<Record<string, LegislationContentModel[]>>({});
+const isLoading = ref(false);
+
+async function loadHistoryContent(contentId: string) {
+  if (contentCache.value[contentId]) return;
+  const db = getFirestore(firebaseApp);
+  const snap = await getDoc(doc(db, 'legislation', props.legislationId, 'historyContent', contentId));
+  if (snap.exists()) {
+    const data = snap.data();
+    contentCache.value = {
+      ...contentCache.value,
+      [contentId]: (data.content as any[]).map(convertContentFromFirebase),
+    };
   }
+}
+
+function getHistoryContent(history: LegislationHistory | null): LegislationContentModel[] {
+  if (!history) return [];
+  if (history.contentId) return contentCache.value[history.contentId] ?? [];
+  return [];
+}
+
+function computePreviousHistory(): LegislationHistory | null {
+  if (props.compareTarget === 'current') return null;
   if (!props.selectedHistory) return null;
-  const selectedIndex = props.sortedHistory.findIndex((history: LegislationHistory) => history === props.selectedHistory);
-  for (let index = selectedIndex - 1; index >= 0; index--) {
-    const candidate = props.sortedHistory[index];
-    if (candidate?.content?.length) {
-      return candidate;
-    }
+  const selectedIndex = props.sortedHistory.findIndex((h: LegislationHistory) => h === props.selectedHistory);
+  for (let i = selectedIndex - 1; i >= 0; i--) {
+    const candidate = props.sortedHistory[i];
+    if (candidate?.contentId) return candidate!;
   }
   return null;
+}
+
+watch([() => props.modelValue, () => props.selectedHistory, () => props.compareTarget], async ([isOpen]) => {
+  if (!isOpen || !props.selectedHistory) return;
+  isLoading.value = true;
+  try {
+    const toLoad: Promise<void>[] = [];
+    if (props.selectedHistory.contentId && !contentCache.value[props.selectedHistory.contentId]) {
+      toLoad.push(loadHistoryContent(props.selectedHistory.contentId));
+    }
+    if (props.compareTarget === 'previous') {
+      const prev = computePreviousHistory();
+      if (prev?.contentId && !contentCache.value[prev.contentId]) {
+        toLoad.push(loadHistoryContent(prev.contentId));
+      }
+    }
+    await Promise.all(toLoad);
+  } finally {
+    isLoading.value = false;
+  }
 });
 
-const previousSnapshot = computed(() => previousHistory.value?.content ?? []);
+const previousHistory = computed(() => computePreviousHistory());
+
+const previousSnapshot = computed(() => getHistoryContent(previousHistory.value));
 const hasPreviousSnapshot = computed(() => previousSnapshot.value.length > 0);
 const currentSnapshotText = computed(() => formatSnapshot(props.currentContent ?? []));
 const previousSnapshotText = computed(() => formatSnapshot(previousSnapshot.value));
-const selectedSnapshotText = computed(() => formatSnapshot(props.selectedHistory?.content ?? []));
+const selectedSnapshotText = computed(() => formatSnapshot(getHistoryContent(props.selectedHistory)));
 const previousSnapshotLabel = computed(() => {
   if (props.compareTarget === 'current') {
     return '目前版本';

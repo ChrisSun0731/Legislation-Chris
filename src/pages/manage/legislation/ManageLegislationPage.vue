@@ -17,6 +17,7 @@ import { setDoc } from 'firebase/firestore';
 import { notifyError, notifySuccess } from 'src/ts/utils.ts';
 
 const action = ref<'add' | null>(null);
+
 const target = reactive({} as { name: string; category: LegislationCategory; createdAt: string; preface?: string });
 const router = useRouter();
 const legislations = useLegislations();
