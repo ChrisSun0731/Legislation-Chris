@@ -79,11 +79,11 @@
         >
           <div
             v-if="content.type.firebase !== ContentType.Clause.firebase && content.type.firebase !== ContentType.SpecialClause.firebase"
-            class="text-h6"
+            :class="['text-h6', { 'text-strike': content.deleted }]"
           >
             {{ content.title }} {{ content.subtitle }}
           </div>
-          <div v-else class="q-py-none">{{ content.title }} 【{{ content.subtitle }}】</div>
+          <div v-else :class="['q-py-none', { 'text-strike': content.deleted }]">{{ content.title }} 【{{ content.subtitle }}】</div>
         </q-item>
       </q-list>
     </q-scroll-area>
