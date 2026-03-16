@@ -17,9 +17,6 @@
           <th>{{ new Date(history.amendedAt).toLocaleDateString() }}</th>
           <th>{{ history.brief }}</th>
           <th class="no-print">
-            <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
-              <q-tooltip>檢視發布公文</q-tooltip>
-            </q-btn>
             <q-btn dense flat icon="edit" size="10px" @click="editHistory(history)" />
             <q-btn color="negative" dense flat icon="delete" size="10px" @click="removeHistory(history)" />
           </th>
@@ -157,7 +154,8 @@
         <q-date v-model="targetHistory.rawAmendedAt" class="q-mb-md" label="日期" mask="YYYY-MM-DD" />
         <q-input v-model="targetHistory.brief" label="簡述" />
         <q-input ref="historyLinkRef" v-model="targetHistory.link" :rules="[isUrl]" label="發布公文連結" />
-        <q-checkbox v-model="targetHistory.recordCurrent" label="記錄目前法條內容為修改後內容" />
+        <q-checkbox v-model="targetHistory.recordCurrent" :disable="recordCurrentDisabled" label="記錄目前法條內容為修改後內容" />
+        <div v-if="recordCurrentDisabled" class="text-caption text-warning q-mt-xs">此功能為記錄歷史比對用，若發現錯誤請聯絡系統管理員</div>
         <q-checkbox v-model="targetHistory.totalAmendment" label="全文修正" />
       </q-card-section>
       <q-card-actions align="right">
@@ -254,13 +252,25 @@ const hasResolutionUrls = computed({
     targetContent.resolutionUrls = v ? [] : undefined;
   },
 });
+const latestHistoryIndex = computed(() => {
+  const histories = legislation.value?.history ?? [];
+  if (histories.length === 0) return -1;
+  let latestIndex = 0;
+  for (let index = 1; index < histories.length; index++) {
+    if (histories[index]!.amendedAt.valueOf() > histories[latestIndex]!.amendedAt.valueOf()) {
+      latestIndex = index;
+    }
+  }
+  return latestIndex;
+});
+const recordCurrentDisabled = computed(() => historyAction.value === 'edit' && targetHistory.index !== latestHistoryIndex.value);
 
 function addContent(index?: number) {
   targetContent.type = models.ContentType.Clause;
   targetContent.deleted = false;
   targetContent.frozenBy = '';
   targetContent.resolutionUrls = undefined;
-  targetContent.index = index ?? legislation.value!.content.length;
+  targetContent.index = index !== undefined ? index + 1 : legislation.value!.content.length;
   targetContent.subtitle = '';
   targetContent.content = '';
   targetContent.insertBefore = index !== undefined;
@@ -275,13 +285,20 @@ function addAddendum() {
 }
 
 function addHistory() {
-  targetHistory.rawAmendedAt = date.formatDate(new Date(), 'YYYY-MM-DD');
-  targetHistory.brief = '';
-  targetHistory.link = '';
-  targetHistory.recordCurrent = true;
-  targetHistory.contentId = undefined;
-  targetHistory.totalAmendment = false;
-  historyAction.value = 'add';
+  Dialog.create({
+    title: '新增立法沿革',
+    message: '請確認是否已完成目前法條內容的修訂與編輯？要先完成修訂與編輯比對功能才會正常運作。',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    targetHistory.rawAmendedAt = date.formatDate(new Date(), 'YYYY-MM-DD');
+    targetHistory.brief = '';
+    targetHistory.link = '';
+    targetHistory.recordCurrent = true;
+    targetHistory.contentId = undefined;
+    targetHistory.totalAmendment = false;
+    historyAction.value = 'add';
+  });
 }
 
 function addAttachment() {
