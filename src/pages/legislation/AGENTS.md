@@ -40,14 +40,14 @@ src/
 
 ## Routes
 
-| Path                               | Layout       | Component                     | Access        |
-| ---------------------------------- | ------------ | ----------------------------- | ------------- |
-| `/`                                | `SSRLayout`  | `LegislationPage`             | Public        |
-| `/legislation`                     | `SSRLayout`  | `LegislationPage`             | Public        |
-| `/legislation/:id`                 | `SSRLayout`  | `SingleLegislationPage`       | Public        |
-| `/legislation/:id/draft_amendment` | `SSRLayout`  | `DraftAmendmentPage`          | Public        |
-| `/manage/legislation`              | `MainLayout` | `ManageLegislationPage`       | Authenticated |
-| `/manage/legislation/:id`          | `MainLayout` | `ManageSingleLegislationPage` | Authenticated |
+| Path                         | Layout       | Component                     | Access        |
+| ---------------------------- | ------------ | ----------------------------- | ------------- |
+| `/`                          | `SSRLayout`  | `LegislationPage`             | Public        |
+| `/legislation`               | `SSRLayout`  | `LegislationPage`             | Public        |
+| `/legislation/:id`           | `SSRLayout`  | `SingleLegislationPage`       | Public        |
+| `/legislation/:id/amendment` | `SSRLayout`  | `DraftAmendmentPage`          | Public        |
+| `/manage/legislation`        | `MainLayout` | `ManageLegislationPage`       | Authenticated |
+| `/manage/legislation/:id`    | `MainLayout` | `ManageSingleLegislationPage` | Authenticated |
 
 > `/manage/*` routes are protected via Firebase Auth. Unauthenticated users are redirected by the router guard in `src/router/index.ts`.
 
@@ -192,13 +192,13 @@ A new legislation document ID is generated as `{idPrefix}` + zero-padded counter
 
 `useDraftAmendmentStore` — Handles offline persistence for the draft amendment editor using VueUse's `useLocalStorage`.
 
-| Member                | Description                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `state.amendmentType` | `'partial' \| 'full' \| null` (Determines the editor mode used)                               |
-| `state.partialContent`| `DraftContent[]` tracking individual modified clauses and user comments                       |
-| `state.fullContent`   | `LegislationContent[]` array containing the entirety of the rewritten legislation             |
-| `saveDraft(id)`       | Persists the entire state into `draft_amendment_{id}` inside LocalStorage                     |
-| `clearDraft(id)`      | Erases the saved state for a specific legislation                                             |
+| Member                 | Description                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `state.amendmentType`  | `'partial' \| 'full' \| null` (Determines the editor mode used)                   |
+| `state.partialContent` | `DraftContent[]` tracking individual modified clauses and user comments           |
+| `state.fullContent`    | `LegislationContent[]` array containing the entirety of the rewritten legislation |
+| `saveDraft(id)`        | Persists the entire state into `amendment_{id}` inside LocalStorage               |
+| `clearDraft(id)`       | Erases the saved state for a specific legislation                                 |
 
 ---
 

@@ -59,7 +59,7 @@
                   </ais-panel>
                 </q-card-section>
                 <q-separator />
-                <q-card-section>
+                <q-card-section class="row">
                   <div v-for="i in Object.keys(item.content)" :key="i">
                     <!-- prettier-ignore -->
                     <div v-if="(item._highlightResult.content[i].content && item._highlightResult.content[i].content.matchedWords.length > 0) ||
@@ -69,7 +69,7 @@
                       <ais-highlight :attribute="`content.${i}.content`" :hit="item" highlightedTagName="mark" />
                     </div>
                   </div>
-                  <q-btn v-if="$props.manage" :to="`/manage/legislation/${item.objectID}`" color="secondary" flat label="編輯" />
+                  <q-btn v-if="$props.manage" :to="`/manage/legislation/${item.objectID}`" color="secondary" flat label="編輯" icon="edit" />
                   <q-btn
                     :to="`/legislation/${item.objectID}`"
                     color="primary"
@@ -90,6 +90,14 @@
                         sendEvent('click', item, 'Legislation link copied');
                         copyLawLink(item.objectID);
                       "
+                    />
+                    <q-btn
+                      color="primary"
+                      flat
+                      icon="draw"
+                      label="起草修正"
+                      :to="`/legislation/${item.objectID}/amendment`"
+                      @click="sendEvent('click', item, 'Legislation amendment clicked')"
                     />
                   </q-no-ssr>
                 </q-card-section>
