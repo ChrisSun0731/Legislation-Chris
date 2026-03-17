@@ -97,7 +97,7 @@ function computePreviousHistory(): LegislationHistory | null {
   const selectedIndex = props.sortedHistory.findIndex((h: LegislationHistory) => h === props.selectedHistory);
   for (let i = selectedIndex - 1; i >= 0; i--) {
     const candidate = props.sortedHistory[i];
-    if (candidate?.contentId) return candidate!;
+    if (candidate?.contentId) return candidate;
   }
   return null;
 }

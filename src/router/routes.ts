@@ -7,8 +7,13 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', component: () => import('pages/legislation/LegislationPage.vue') },
       { path: ':id', component: () => import('pages/legislation/SingleLegislationPage.vue') },
-      { path: ':id/draft_amendment', component: () => import('pages/legislation/DraftAmendmentPage.vue') },
     ],
+  },
+  {
+    // No SSR for draft amendment page
+    path: '/legislation',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [{ path: ':id/draft_amendment', component: () => import('pages/legislation/DraftAmendmentPage.vue') }],
   },
   {
     path: '/manage',
