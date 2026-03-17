@@ -8,6 +8,19 @@ import { exception } from 'vue-gtag';
 import { convert } from 'html-to-text';
 import { getCurrentReign } from './shared-utils';
 
+export function generateHistoryContentId(refDate: Date, existingIds: string[]): string {
+  const utc8 = new Date(refDate.getTime() + 8 * 60 * 60 * 1000);
+  const year = utc8.getUTCFullYear().toString();
+  const month = (utc8.getUTCMonth() + 1).toString().padStart(2, '0');
+  const day = utc8.getUTCDate().toString().padStart(2, '0');
+  const dateStr = year + month + day;
+  let counter = 1;
+  while (existingIds.includes(dateStr + counter)) {
+    counter++;
+  }
+  return dateStr + counter;
+}
+
 export function copyLink(href?: string | number | null) {
   void copyText(location.protocol + '//' + location.host + location.pathname + (href ? '?c=' + href.toString() : ''));
 }

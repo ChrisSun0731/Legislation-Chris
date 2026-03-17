@@ -17,9 +17,6 @@
           <th>{{ new Date(history.amendedAt).toLocaleDateString() }}</th>
           <th>{{ history.brief }}</th>
           <th class="no-print">
-            <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
-              <q-tooltip>檢視發布公文</q-tooltip>
-            </q-btn>
             <q-btn dense flat icon="edit" size="10px" @click="editHistory(history)" />
             <q-btn color="negative" dense flat icon="delete" size="10px" @click="removeHistory(history)" />
           </th>
@@ -157,7 +154,8 @@
         <q-date v-model="targetHistory.rawAmendedAt" class="q-mb-md" label="日期" mask="YYYY-MM-DD" />
         <q-input v-model="targetHistory.brief" label="簡述" />
         <q-input ref="historyLinkRef" v-model="targetHistory.link" :rules="[isUrl]" label="發布公文連結" />
-        <q-checkbox v-model="targetHistory.recordCurrent" label="記錄目前法條內容為修改後內容" />
+        <q-checkbox v-model="targetHistory.recordCurrent" :disable="recordCurrentDisabled" label="記錄目前法條內容為修改後內容" />
+        <div v-if="recordCurrentDisabled" class="text-caption text-warning q-mt-xs">此功能為記錄歷史比對用，若發現錯誤請聯絡系統管理員</div>
         <q-checkbox v-model="targetHistory.totalAmendment" label="全文修正" />
       </q-card-section>
       <q-card-actions align="right">
@@ -191,11 +189,11 @@ import { useRoute, useRouter } from 'vue-router';
 import type { LegislationCategory, LegislationHistory, ResolutionUrl } from 'src/ts/models.ts';
 import * as models from 'src/ts/models.ts';
 import { ContentType, convertContentToFirebase } from 'src/ts/models.ts';
-import { legislationDocument, useLegislation } from 'src/ts/model-converters.ts';
+import { historyContentDocument, legislationDocument, useLegislation } from 'src/ts/model-converters.ts';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
-import { copyLink, notifyError, notifySuccess, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
+import { copyLink, generateHistoryContentId, notifyError, notifySuccess, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
 import { date, Dialog, Loading } from 'quasar';
-import { arrayRemove, arrayUnion, deleteDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { VueDraggable } from 'vue-draggable-plus';
 import type { Ref } from 'vue';
 import { reactive, ref, computed } from 'vue';
@@ -219,6 +217,7 @@ interface EditingLegislationHistory extends LegislationHistory {
 
 const route = useRoute();
 const router = useRouter();
+
 const legislation = useLegislation(route.params.id! as string);
 const targetContent = reactive({} as EditingLegislationContent);
 const targetAddendum = reactive({} as { content: string[]; createdAt: string; index: number });
@@ -253,13 +252,25 @@ const hasResolutionUrls = computed({
     targetContent.resolutionUrls = v ? [] : undefined;
   },
 });
+const latestHistoryIndex = computed(() => {
+  const histories = legislation.value?.history ?? [];
+  if (histories.length === 0) return -1;
+  let latestIndex = 0;
+  for (let index = 1; index < histories.length; index++) {
+    if (histories[index]!.amendedAt.valueOf() > histories[latestIndex]!.amendedAt.valueOf()) {
+      latestIndex = index;
+    }
+  }
+  return latestIndex;
+});
+const recordCurrentDisabled = computed(() => historyAction.value === 'edit' && targetHistory.index !== latestHistoryIndex.value);
 
 function addContent(index?: number) {
   targetContent.type = models.ContentType.Clause;
   targetContent.deleted = false;
   targetContent.frozenBy = '';
   targetContent.resolutionUrls = undefined;
-  targetContent.index = index ?? legislation.value!.content.length;
+  targetContent.index = index !== undefined ? index + 1 : legislation.value!.content.length;
   targetContent.subtitle = '';
   targetContent.content = '';
   targetContent.insertBefore = index !== undefined;
@@ -274,13 +285,20 @@ function addAddendum() {
 }
 
 function addHistory() {
-  targetHistory.rawAmendedAt = date.formatDate(new Date(), 'YYYY-MM-DD');
-  targetHistory.brief = '';
-  targetHistory.link = '';
-  targetHistory.recordCurrent = true;
-  targetHistory.content = [];
-  targetHistory.totalAmendment = false;
-  historyAction.value = 'add';
+  Dialog.create({
+    title: '新增立法沿革',
+    message: '請確認是否已完成目前法條內容的修訂與編輯？要先完成修訂與編輯比對功能才會正常運作。',
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    targetHistory.rawAmendedAt = date.formatDate(new Date(), 'YYYY-MM-DD');
+    targetHistory.brief = '';
+    targetHistory.link = '';
+    targetHistory.recordCurrent = true;
+    targetHistory.contentId = undefined;
+    targetHistory.totalAmendment = false;
+    historyAction.value = 'add';
+  });
 }
 
 function addAttachment() {
@@ -309,7 +327,6 @@ function editHistory(history: models.LegislationHistory) {
   targetHistory.link = history.link ?? '';
   targetHistory.recordCurrent = false;
   targetHistory.index = legislation.value!.history.indexOf(history);
-  targetHistory.content = history.content?.slice() ?? []; // Clone
   historyAction.value = 'edit';
 }
 
@@ -477,10 +494,10 @@ async function submitAddendum() {
 
 async function submitHistory(skipCheck: boolean = false) {
   if (!skipCheck && historyLinkRef.value?.validate() !== true) return;
+  const id = route.params.id! as string;
   const mappedHistory = {
     amendedAt: date.extractDate(targetHistory.rawAmendedAt, 'YYYY-MM-DD'),
     brief: targetHistory.brief,
-    content: targetHistory.content,
   } as models.LegislationHistory;
   if (targetHistory.link) {
     mappedHistory.link = targetHistory.link;
@@ -488,14 +505,20 @@ async function submitHistory(skipCheck: boolean = false) {
   if (targetHistory.totalAmendment) {
     mappedHistory.totalAmendment = targetHistory.totalAmendment;
   }
-  if (targetHistory.recordCurrent) {
-    mappedHistory.content = legislation.value!.content;
+  if (targetHistory.recordCurrent && legislation.value!.content.length > 0) {
+    const existingIds = legislation.value!.history.map((h) => h.contentId).filter((cid): cid is string => !!cid);
+    const contentId = generateHistoryContentId(new Date(), existingIds);
+    await setDoc(historyContentDocument(id, contentId), {
+      content: legislation.value!.content.map(convertContentToFirebase),
+    });
+    mappedHistory.contentId = contentId;
+  } else if (targetHistory.contentId) {
+    mappedHistory.contentId = targetHistory.contentId;
   }
   await submitProperty(
     historyAction,
     async () => {
-      mappedHistory.content = mappedHistory.content?.map(convertContentToFirebase);
-      await updateDoc(legislationDocument(route.params.id! as string), {
+      await updateDoc(legislationDocument(id), {
         history: arrayUnion(mappedHistory),
       });
     },
@@ -503,13 +526,12 @@ async function submitHistory(skipCheck: boolean = false) {
       legislation.value!.history[targetHistory.index] = mappedHistory;
       const newHistory = legislation
         .value!.history.map((h) => {
-          const copy = { ...h };
-          copy.content = copy.content?.map(convertContentToFirebase) ?? [];
+          const copy = { ...h } as any;
           if (!copy.totalAmendment) delete copy.totalAmendment;
           return copy;
         })
-        .slice(0); // Copying the array prevents firebase changing it midway for some reason
-      await updateDoc(legislationDocument(route.params.id! as string), { history: newHistory });
+        .slice(0);
+      await updateDoc(legislationDocument(id), { history: newHistory });
     },
   );
 }
@@ -599,8 +621,6 @@ function removeAddendum(addendum: models.Addendum) {
 }
 
 function removeHistory(history: models.LegislationHistory) {
-  const copy = { ...history };
-  copy.content = copy.content?.map(convertContentToFirebase);
   removeProperty('history', history, '立法沿革');
 }
 

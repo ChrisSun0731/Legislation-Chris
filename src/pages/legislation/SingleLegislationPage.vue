@@ -27,13 +27,21 @@
       <div v-if="legislation.history.length > 0">
         立法沿革
         <table>
-          <tr v-for="history of legislation.history" :key="history.amendedAt.valueOf()">
+          <tr v-for="history of sortedHistory" :key="history.amendedAt.valueOf()">
             <th>{{ new Date(history.amendedAt).toLocaleDateString() }}</th>
             <th>{{ history.brief }}</th>
             <th class="no-print">
-              <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
-                <q-tooltip>檢視發布公文</q-tooltip>
-              </q-btn>
+              <div class="history-actions">
+                <q-btn v-if="history.contentId" dense flat icon="compare_arrows" size="10px" @click="openHistoryDiff(history)">
+                  <q-tooltip>檢視修正差異</q-tooltip>
+                </q-btn>
+                <q-btn v-if="history.contentId" dense flat icon="merge_type" size="10px" @click="openHistoryDiff(history, 'current')">
+                  <q-tooltip>比較目前版本</q-tooltip>
+                </q-btn>
+                <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
+                  <q-tooltip>檢視發布公文</q-tooltip>
+                </q-btn>
+              </div>
             </th>
           </tr>
         </table>
@@ -71,24 +79,35 @@
         >
           <div
             v-if="content.type.firebase !== ContentType.Clause.firebase && content.type.firebase !== ContentType.SpecialClause.firebase"
-            class="text-h6"
+            :class="['text-h6', { 'text-strike': content.deleted }]"
           >
             {{ content.title }} {{ content.subtitle }}
           </div>
-          <div v-else class="q-py-none">{{ content.title }} 【{{ content.subtitle }}】</div>
+          <div v-else :class="['q-py-none', { 'text-strike': content.deleted }]">{{ content.title }} 【{{ content.subtitle }}】</div>
         </q-item>
       </q-list>
     </q-scroll-area>
   </q-drawer>
+  <LegislationHistoryDiffDialog
+    v-model="historyDiffDialog"
+    :compare-target="diffCompareTarget"
+    :current-content="legislation?.content ?? []"
+    :legislation-id="route.params.id as string"
+    :selected-history="selectedHistory"
+    :sorted-history="sortedHistory"
+  />
 </template>
+
 <script lang="ts" setup>
 import { useRoute } from 'vue-router';
 import { ContentType } from 'src/ts/models.ts';
-import { onMounted, onServerPrefetch, reactive, ref, watch } from 'vue';
+import type { LegislationHistory } from 'src/ts/models.ts';
+import { computed, onMounted, onServerPrefetch, reactive, ref, watch } from 'vue';
 import { event } from 'vue-gtag';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
 import { copyLink, getMeta } from 'src/ts/utils.ts';
 import LegislationAddendum from 'components/legislation/LegislationAddendum.vue';
+import LegislationHistoryDiffDialog from 'components/legislation/LegislationHistoryDiffDialog.vue';
 import { useVueToPrint } from 'vue-to-print';
 import AttachmentDisplay from 'components/AttachmentDisplay.vue';
 import { Dark, useMeta } from 'quasar';
@@ -98,13 +117,21 @@ const legislation = ref();
 const content = ref();
 const printing = ref(false);
 const expanded = reactive({} as Record<number, boolean>);
+const historyDiffDialog = ref(false);
+const selectedHistory = ref<LegislationHistory | null>(null);
+const diffCompareTarget = ref<'previous' | 'current'>('previous');
 const route = useRoute();
-const hash = ref(route.hash?.substring(1)); // Old URLs uses hash
+const hash = ref(route.hash?.substring(1));
+
 if (!hash.value || hash.value.length === 0) {
   hash.value = route.query.c as string;
 }
+
+const sortedHistory = computed(() =>
+  (legislation.value?.history ?? []).slice().sort((a: LegislationHistory, b: LegislationHistory) => a.amendedAt.valueOf() - b.amendedAt.valueOf()),
+);
+
 onMounted(() => {
-  // In window switches do not trigger SSR
   useLegislationStore()
     .loadLegislation(route.params.id as string)
     .then((l) => (legislation.value = l))
@@ -116,18 +143,18 @@ onMounted(() => {
     type: legislation.value?.category.type.translation,
   });
 });
+
 watch(
   legislation,
   () => {
     if (hash.value) {
-      // wait for the content to load
       setTimeout(() => {
         scrollTo(hash.value);
       }, 250);
     }
-    for (const content of legislation.value?.content ?? []) {
-      if (content.type.firebase === ContentType.SpecialClause.firebase) {
-        expanded[content.index] = true;
+    for (const contentItem of legislation.value?.content ?? []) {
+      if (contentItem.type.firebase === ContentType.SpecialClause.firebase) {
+        expanded[contentItem.index] = true;
       }
     }
   },
@@ -166,6 +193,12 @@ function expandAll() {
   }
 }
 
+function openHistoryDiff(history: LegislationHistory, compareTarget: 'previous' | 'current' = 'previous') {
+  selectedHistory.value = history;
+  diffCompareTarget.value = compareTarget;
+  historyDiffDialog.value = true;
+}
+
 function scrollTo(index: string) {
   const el = document.getElementById(index);
   if (el) {
@@ -192,19 +225,19 @@ useMeta(() => {
   const l = store.getLegislation(route.params.id as string);
   let description = undefined as string | undefined;
   const intHash = parseInt(hash.value ?? '0');
-  const content = l?.content.find((c) => c.index === intHash);
-  if (content) {
-    description = content.title;
-    switch (content.type.firebase) {
+  const contentItem = l?.content.find((c) => c.index === intHash);
+  if (contentItem) {
+    description = contentItem.title;
+    switch (contentItem.type.firebase) {
       case ContentType.Volume.firebase:
       case ContentType.Chapter.firebase:
       case ContentType.Section.firebase:
       case ContentType.Subsection.firebase:
-        description += ' ' + content.subtitle + ' \n' + content.content;
+        description += ' ' + contentItem.subtitle + ' \n' + contentItem.content;
         break;
       case ContentType.SpecialClause.firebase:
       case ContentType.Clause.firebase:
-        description += (content.subtitle?.length > 0 ? ' 【' + content.subtitle + '】 \n' : ' \n') + content.content;
+        description += (contentItem.subtitle?.length > 0 ? ' 【' + contentItem.subtitle + '】 \n' : ' \n') + contentItem.content;
         break;
     }
   }
@@ -231,5 +264,13 @@ th {
   font-weight: normal;
   text-align: left;
   vertical-align: top;
+}
+
+.history-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  white-space: nowrap;
 }
 </style>

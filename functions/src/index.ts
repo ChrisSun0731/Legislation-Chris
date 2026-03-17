@@ -10,8 +10,9 @@
 import * as admin from 'firebase-admin';
 admin.initializeApp(); // This must run before everything else
 import { FieldPath, FieldValue } from 'firebase-admin/firestore';
-import { HttpsError, onCall, onRequest } from 'firebase-functions/https';
+import { CallableRequest, HttpsError, onCall, onRequest } from 'firebase-functions/https';
 import { onDocumentWritten } from 'firebase-functions/firestore';
+import * as logger from 'firebase-functions/logger';
 import { drive_v3, google } from 'googleapis';
 import * as Stream from 'stream';
 import { addUserWithRole, checkRole, editUserClaims } from './auth';
@@ -44,22 +45,66 @@ const mailTransport = createTransport({
   },
 });
 
+function getActorInfo(request: CallableRequest) {
+  return {
+    uid: request.auth?.uid ?? null,
+    email: (request.auth?.token.email as string | undefined) ?? null,
+    name: (request.auth?.token.name as string | undefined) ?? null,
+  };
+}
+
+function getUserLogInfo(user: admin.auth.UserRecord) {
+  return {
+    uid: user.uid,
+    email: user.email ?? null,
+    name: user.displayName ?? null,
+    roles: (user.customClaims?.roles as string[] | undefined) ?? [],
+  };
+}
+
 export const addUser = onCall(globalFunctionOptions, async (request) => {
   await checkRole(request, ACCOUNT_MANAGER_ROLES);
   const user = request.data as User;
-  await addUserWithRole(user);
+  const createdUser = await addUserWithRole(user);
+  logger.info('User added', {
+    actor: getActorInfo(request),
+    target: {
+      ...getUserLogInfo(createdUser),
+      name: createdUser.displayName ?? user.name ?? null,
+      roles: user.roles,
+    },
+  });
   return { success: true };
 });
 
 export const deleteUser = onCall(globalFunctionOptions, async (request) => {
   await checkRole(request, ACCOUNT_MANAGER_ROLES);
+  const targetUser = await admin.auth().getUser(request.data.uid);
   await admin.auth().deleteUser(request.data.uid);
+  logger.info('User deleted', {
+    actor: getActorInfo(request),
+    target: getUserLogInfo(targetUser),
+  });
   return { success: true };
 });
 
 export const editUser = onCall(globalFunctionOptions, async (request) => {
   await checkRole(request, ACCOUNT_MANAGER_ROLES);
+  const actor = getActorInfo(request);
+  const beforeUser = await admin.auth().getUser(request.data.uid);
+  logger.info('User edited, before:', {
+    actor,
+    target: getUserLogInfo(beforeUser),
+    updatedClaims: request.data.claims ?? {},
+  });
   await editUserClaims(request.data.uid, request.data.claims);
+  const afterUser = await admin.auth().getUser(request.data.uid);
+  logger.info('User edited, after:', {
+    actor,
+    before: getUserLogInfo(beforeUser),
+    after: getUserLogInfo(afterUser),
+    updatedClaims: request.data.claims ?? {},
+  });
   return { success: true };
 });
 
@@ -95,9 +140,9 @@ export const uploadAttachment = onCall(
       q: `mimeType='application/vnd.google-apps.folder' and name='${getCurrentReign()}'`,
       fields: 'files(id)',
     });
-    let folder: string | null | undefined = null;
-    if ((folderQuery.data.files?.length ?? 0) == 0) {
-      folder = (
+    const folder =
+      folderQuery.data.files?.[0].id ??
+      (
         await driveAPI.files.create({
           requestBody: {
             name: getCurrentReign(),
@@ -107,9 +152,6 @@ export const uploadAttachment = onCall(
           fields: 'id',
         })
       ).data.id;
-    } else {
-      folder = folderQuery.data.files?.[0].id;
-    }
     const file = await driveAPI.files.create({
       requestBody: {
         name,
