@@ -33,18 +33,6 @@ export default boot(({ app }) => {
   }
 });
 
-export function useFunction(name: string): HttpsCallable {
-  // We keep the return type same but we will need to handle the async nature if we want full optimization.
-  // However, simple dynamic import inside the function won't work for synchronous return.
-  // Let's check if the callers expect a promise or the callable function.
-  // httpsCallable returns a function.
-  
-  // Actually, let's just dynamic import the products in a way that doesn't break the sync signature if possible, 
-  // or accept that calling useFunction will be async if we refactor callers.
-  // For now, let's at least remove'em from the top-level imports.
-  throw new Error('Please use useFunctionAsync instead for better performance');
-}
-
 export async function useFunctionAsync(name: string): Promise<HttpsCallable> {
   const { getFunctions, httpsCallable } = await import('@firebase/functions');
   return httpsCallable(getFunctions(firebaseApp, 'asia-east1'), name);

@@ -32,13 +32,29 @@
             <th>{{ history.brief }}</th>
             <th class="no-print">
               <div class="history-actions">
-                <q-btn v-if="history.contentId" dense flat icon="compare_arrows" size="10px" @click="openHistoryDiff(history)">
+                <q-btn
+                  v-if="history.contentId"
+                  dense
+                  flat
+                  icon="compare_arrows"
+                  size="10px"
+                  @click="openHistoryDiff(history)"
+                  aria-label="檢視修正差異"
+                >
                   <q-tooltip>檢視修正差異</q-tooltip>
                 </q-btn>
-                <q-btn v-if="history.contentId" dense flat icon="merge_type" size="10px" @click="openHistoryDiff(history, 'current')">
+                <q-btn
+                  v-if="history.contentId"
+                  dense
+                  flat
+                  icon="merge_type"
+                  size="10px"
+                  @click="openHistoryDiff(history, 'current')"
+                  aria-label="比較目前版本"
+                >
                   <q-tooltip>比較目前版本</q-tooltip>
                 </q-btn>
-                <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px">
+                <q-btn v-if="history.link" :href="history.link" dense flat icon="open_in_new" size="10px" aria-label="檢視發布公文">
                   <q-tooltip>檢視發布公文</q-tooltip>
                 </q-btn>
               </div>

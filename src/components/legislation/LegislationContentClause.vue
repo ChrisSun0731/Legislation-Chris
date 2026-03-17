@@ -12,8 +12,8 @@
         <q-no-ssr>
           <q-btn aria-label="複製連結" class="no-print" dense flat icon="link" size="12px" @click="copyLink($props.content.index)" />
         </q-no-ssr>
-        <q-no-ssr v-if="$props.content.resolutionUrls?.length">
-          <q-btn flat dense icon="gavel" size="12px" class="no-print">
+        <q-no-ssr>
+          <q-btn v-if="$props.content.resolutionUrls?.length" flat dense icon="gavel" size="12px" class="no-print" aria-label="決議文">
             <q-tooltip>決議文</q-tooltip>
             <q-menu>
               <q-list style="min-width: 150px">
