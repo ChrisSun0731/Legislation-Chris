@@ -3,9 +3,7 @@ import type { DocumentType } from './models';
 import { DocumentSpecificIdentity } from './models';
 import { documentsCollection } from './model-converters';
 import { getDocsFromServer, limit, orderBy, query, where } from 'firebase/firestore';
-import sanitize from 'sanitize-html';
 import { exception } from 'vue-gtag';
-import { convert } from 'html-to-text';
 import { getCurrentReign } from './shared-utils';
 
 export function generateHistoryContentId(refDate: Date, existingIds: string[]): string {
@@ -140,10 +138,13 @@ export async function generateDocumentIdNumber(specific: DocumentSpecificIdentit
   return s;
 }
 
-export function customSanitize(text: string) {
+export async function customSanitize(text: string) {
+  const { default: sanitize } = await import('sanitize-html');
+  const sanitizeDefaults = (sanitize as any).defaults;
+
   return sanitize(text, {
-    allowedTags: sanitize.defaults.allowedTags.concat(['font']),
-    allowedAttributes: Object.assign(sanitize.defaults.allowedAttributes, {
+    allowedTags: sanitizeDefaults.allowedTags.concat(['font']),
+    allowedAttributes: Object.assign(sanitizeDefaults.allowedAttributes, {
       font: ['color', 'size'],
       div: ['style'],
     }),
@@ -162,8 +163,13 @@ export function customSanitize(text: string) {
   });
 }
 
-export function htmlToText(html: string, wordwrap: number = 130) {
+export async function htmlToText(html: string, wordwrap: number = 130) {
+  const { convert } = await import('html-to-text');
   return convert(html, { wordwrap });
+}
+
+export function stripHtml(html: string) {
+  return html.replace(/<[^>]*>?/gm, '');
 }
 
 export function getMeta(title?: string, desc?: string) {

@@ -17,7 +17,9 @@
         {{ doc.fromName }}
       </div>
     </div>
-    <div v-html="customSanitize(doc.content)"></div>
+    <DocumentSeparator />
+    <SafeHtml :content="doc.content" />
+    <DocumentSeparator />
   </div>
 </template>
 
@@ -25,7 +27,8 @@
 import { computed } from 'vue';
 import type * as models from 'src/ts/models.ts';
 import { DocumentGeneralIdentity, DocumentSpecificIdentity } from 'src/ts/models.ts';
-import { customSanitize, getReadableRecipient } from 'src/ts/utils.ts';
+import { getReadableRecipient } from 'src/ts/utils.ts';
+import SafeHtml from 'components/SafeHtml.vue';
 import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 const props = defineProps<{

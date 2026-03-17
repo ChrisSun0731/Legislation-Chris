@@ -24,7 +24,7 @@
               <q-item-label class="text-h6" overline>{{ doc.getFullId() }}</q-item-label>
               <q-item-label class="text-h6">{{ doc.subject }}</q-item-label>
               <q-item-label caption
-                >{{ htmlToText(doc.content).slice(0, 100) }}<span v-if="htmlToText(doc.content).length > 100">...</span>
+                >{{ stripHtml(doc.content).slice(0, 100) }}<span v-if="stripHtml(doc.content).length > 100">...</span>
               </q-item-label>
             </q-item-section>
           </q-item>
@@ -59,7 +59,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
-import { getMeta, htmlToText } from 'src/ts/utils.ts';
+import { getMeta, stripHtml } from 'src/ts/utils.ts';
 import { getCurrentReign } from 'src/ts/shared-utils.ts';
 import { isReign } from 'src/ts/checks.ts';
 import * as models from 'src/ts/models.ts';

@@ -75,7 +75,7 @@ import { computed, reactive, ref } from 'vue';
 import type { User } from 'src/ts/models.ts';
 import { DocumentSpecificIdentity } from 'src/ts/models.ts';
 import { getAllUsers } from '../../ts/auth.ts';
-import { useFunction } from 'boot/vuefire.ts';
+import { useFunctionAsync } from 'boot/vuefire.ts';
 import type { QTableColumn } from 'quasar';
 import { Dialog, Loading } from 'quasar';
 import { notifyError, notifySuccess } from 'src/ts/utils.ts';
@@ -126,14 +126,16 @@ async function submit() {
   Loading.show();
   try {
     if (action.value === 'edit') {
-      await useFunction('editUser')({
+      const editUserFn = await useFunctionAsync('editUser');
+      await editUserFn({
         uid: targetUser.uid,
         claims: {
           roles: targetUser.roles,
         },
       });
     } else if (action.value === 'add') {
-      await useFunction('addUser')(targetUser);
+      const addUserFn = await useFunctionAsync('addUser');
+      await addUserFn(targetUser);
     }
   } catch (e) {
     notifyError('更新失敗', e);
@@ -154,7 +156,8 @@ function del(row: any) {
   }).onOk(async () => {
     Loading.show();
     try {
-      await useFunction('deleteUser')({ uid: row.uid });
+      const deleteUserFn = await useFunctionAsync('deleteUser');
+      await deleteUserFn({ uid: row.uid });
     } catch (e) {
       notifyError('刪除失敗', e);
       return;

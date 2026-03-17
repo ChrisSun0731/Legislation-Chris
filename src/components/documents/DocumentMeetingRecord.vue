@@ -10,14 +10,15 @@
       <div v-if="doc.meetingTime">會議時間：{{ doc.meetingTime.toLocaleString() }}</div>
       <div>地點：{{doc.location}}</div>
     </div>
-    <DocumentSeparator/>
-    <div v-html="customSanitize(doc.content)"></div>
+    <DocumentSeparator />
+    <SafeHtml :content="doc.content" />
+    <DocumentSeparator />
   </div>
 </template>
 
 <script lang="ts" setup>
 import type * as models from 'src/ts/models.ts';
-import { customSanitize } from 'src/ts/utils.ts';
+import SafeHtml from 'components/SafeHtml.vue';
 import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 defineProps<{

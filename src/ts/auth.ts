@@ -1,56 +1,62 @@
 import { Loading } from 'quasar';
-import type {User } from 'firebase/auth';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import type { Auth, User } from 'firebase/auth';
 import type * as models from 'src/ts/models.ts';
 import type { Ref} from 'vue';
 import { reactive, ref } from 'vue';
-import { useAuth, useFunction } from 'boot/vuefire.ts';
+import { useAuth, useFunctionAsync } from 'boot/vuefire.ts';
 import { notifyError, notifySuccess } from 'src/ts/utils.ts';
 
-let auth = useAuth();
+let authStore: Auth | null = null;
 export const loggedInUser = ref(null) as Ref<User | null>;
 export const loggedInUserClaims = reactive({} as { roles: string[] });
 
-export function init() {
-  auth = useAuth();
+async function getAuthInstance() {
+  if (!authStore) {
+    authStore = await useAuth();
+  }
+  return authStore;
+}
+
+export async function init() {
+  const auth = await getAuthInstance();
   void updateCustomClaims();
   auth.onAuthStateChanged((user) => {
     loggedInUser.value = user;
     void updateCustomClaims();
     if (user) {
       console.log('Logged In.');
-    } else if (auth) {
-      console.log('Logged Out.');
     } else {
-      console.log('Firebase auth not ready.');
+      console.log('Logged Out.');
     }
   });
 }
 
-export function login() {
+export async function login() {
   console.log('Opening login page.');
   Loading.show();
-  const provider = new GoogleAuthProvider();
-  signInWithPopup(auth, provider)
-    .then(() => {
-      console.log('Logged in successfully.');
-      Loading.hide();
-      notifySuccess('登入成功');
-    })
-    .catch((error) => {
-      console.error('Failed to log in.');
-      Loading.hide();
-      notifyError('登入失敗', error);
-    });
+  try {
+    const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
+    const auth = await getAuthInstance();
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    console.log('Logged in successfully.');
+    Loading.hide();
+    notifySuccess('登入成功');
+  } catch (error) {
+    console.error('Failed to log in.');
+    Loading.hide();
+    notifyError('登入失敗', error as Error);
+  }
 }
 
 export async function updateCustomClaims() {
+  const auth = await getAuthInstance();
   const claims = await auth?.currentUser?.getIdTokenResult();
   if (!claims) {
     loggedInUserClaims.roles = [];
     return;
   }
-  loggedInUserClaims.roles = claims.claims.roles as string[];
+  loggedInUserClaims.roles = (claims.claims.roles as string[]) || [];
 }
 
 export function useCurrentClaims() {
@@ -62,9 +68,11 @@ export function useCurrentUser() {
 }
 
 export async function getAllUsers(): Promise<models.User[]> {
-  return (await useFunction('getAllUsers')()).data as models.User[];
+  const getAllUsersFn = await useFunctionAsync('getAllUsers');
+  return (await getAllUsersFn()).data as models.User[];
 }
 
-export function logout() {
+export async function logout() {
+  const auth = await getAuthInstance();
   void auth.signOut();
 }

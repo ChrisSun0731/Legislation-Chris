@@ -49,7 +49,7 @@
 
         <q-card-section>
           <div class="text-body2">
-            <template v-for="plain in [htmlToText(doc.content)]" :key="plain">
+            <template v-for="plain in [stripHtml(doc.content)]" :key="plain">
               {{ plain.slice(0, 120) }}
               <span v-if="plain.length > 120">...</span>
             </template>
@@ -90,7 +90,7 @@ import { useCollection } from 'vuefire';
 import orderBy from 'lodash/orderBy';
 import { useMeta } from 'quasar';
 import DocumentRenderer from 'components/documents/DocumentRenderer.vue';
-import { copyLink, getMeta, htmlToText } from 'src/ts/utils.ts';
+import { copyLink, getMeta, stripHtml } from 'src/ts/utils.ts';
 import { DocumentConfidentiality, DocumentType } from 'src/ts/models.ts';
 import { documentsCollection } from 'src/ts/model-converters.ts';
 
@@ -143,7 +143,7 @@ const filteredDocs = computed<any[]>(() => {
   if (appliedKeyword.value.trim()) {
     const target = appliedKeyword.value.trim().toLowerCase();
     result = result.filter((doc: any) => {
-      const text = htmlToText(String(doc.content || '')).toLowerCase();
+      const text = stripHtml(String(doc.content || '')).toLowerCase();
       const sub = String(doc.subject || '').toLowerCase();
       return text.includes(target) || sub.includes(target);
     });

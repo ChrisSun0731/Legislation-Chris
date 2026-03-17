@@ -11,15 +11,16 @@
     <div class="text-h6">主旨：{{ doc.subject }}</div>
     <DocumentSeparator />
     <div class="text-h6">說明：</div>
-    <div v-html="customSanitize(doc.content)"></div>
+    <SafeHtml :content="doc.content" />
   </div>
 </template>
 
 <script lang="ts" setup>
 import { computed } from 'vue';
 import type * as models from 'src/ts/models.ts';
-import { customSanitize, getReadableRecipient } from 'src/ts/utils.ts';
+import { getReadableRecipient } from 'src/ts/utils.ts';
 import DocumentSeparator from 'components/DocumentSeparator.vue';
+import SafeHtml from 'components/SafeHtml.vue';
 
 const props = defineProps<{
   doc: models.Document;

@@ -6,7 +6,7 @@
 
         <q-toolbar-title>
           <q-avatar>
-            <img alt="favicon" src="/icon.png" height="38" width="38" />
+            <img alt="favicon" src="/icon.webp" height="38" width="38" />
           </q-avatar>
           <span v-if="$q.screen.gt.xs" class="q-pl-sm">建國中學班聯會法律與公文系統</span>
           <span v-else class="q-pl-sm">建中班聯會法律與公文系統</span>

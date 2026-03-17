@@ -6,7 +6,7 @@
     <div class="text-h6">發文日期：{{ doc.published ? doc.publishedAt!.toLocaleDateString() : '尚未發布' }}</div>
     <div class="text-h6">發文字號：{{ doc.getFullId() }}</div>
     <DocumentSeparator />
-    <div v-html="customSanitize(doc.content)"></div>
+    <SafeHtml :content="doc.content" />
     <DocumentSeparator />
     <div class="text-h2">
       <span class="text-h6 on-left">{{ doc.fromSpecific.signatureTitle ?? doc.fromSpecific.translation }}</span>
@@ -20,7 +20,7 @@
 
 <script lang="ts" setup>
 import type * as models from 'src/ts/models.ts';
-import { customSanitize } from 'src/ts/utils.ts';
+import SafeHtml from 'components/SafeHtml.vue';
 import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 const props = defineProps<{

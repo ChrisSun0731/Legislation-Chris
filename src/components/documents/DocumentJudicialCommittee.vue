@@ -7,14 +7,17 @@
       <div v-if="doc.type.firebase==DocumentType.JudicialCommitteeExplanation.firebase">{{ doc.fromSpecific.translation }}</div>
     </h1>
     <div class="text-right">{{ doc.getFullId() }}</div>
-    <div v-html="customSanitize(doc.content)"></div>
+    <DocumentSeparator />
+    <SafeHtml :content="doc.content" />
+    <DocumentSeparator />
   </div>
 </template>
 
 <script lang="ts" setup>
 import type * as models from 'src/ts/models.ts';
-import { customSanitize } from 'src/ts/utils.ts';
+import SafeHtml from 'components/SafeHtml.vue';
 import { DocumentType } from 'src/ts/models.ts';
+import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 defineProps<{
   doc: models.Document;

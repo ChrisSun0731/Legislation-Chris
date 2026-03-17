@@ -4,13 +4,16 @@
     <h1 class="text-h4 q-mt-none flex-center text-center" style="font-size: 32px">臺北市立建國中學班聯會</h1>
     <h1 class="text-h4 q-mt-none flex-center text-center" style="font-size: 32px">{{ doc.fromSpecific.translation }}</h1>
     <div class="text-right">{{ doc.getFullId() }}</div>
-    <div v-html="customSanitize(doc.content)"></div>
+    <DocumentSeparator />
+    <SafeHtml :content="doc.content" />
+    <DocumentSeparator />
   </div>
 </template>
 
 <script lang="ts" setup>
 import type * as models from 'src/ts/models.ts';
-import { customSanitize } from 'src/ts/utils.ts';
+import SafeHtml from 'components/SafeHtml.vue';
+import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 defineProps<{
   doc: models.Document;

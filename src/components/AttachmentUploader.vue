@@ -27,7 +27,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
-import { useFunction } from 'boot/vuefire.ts';
+import { useFunctionAsync } from 'boot/vuefire.ts';
 import { Loading } from 'quasar';
 import { notifyError, notifySuccess } from 'src/ts/utils.ts';
 
@@ -54,9 +54,10 @@ function upload() {
     reader.readAsDataURL(file);
     reader.onload = async () => {
       try {
+        const uploadAttachmentFn = await useFunctionAsync('uploadAttachment');
         const url = (
           (
-            await useFunction('uploadAttachment')({
+            await uploadAttachmentFn({
               name,
               mimetype: file.type,
               content: (reader.result as string).split('base64,')[1],

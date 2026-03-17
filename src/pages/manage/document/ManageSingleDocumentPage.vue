@@ -151,7 +151,7 @@ import DocumentRenderer from 'components/documents/DocumentRenderer.vue';
 import { notifyError, notifySuccess } from 'src/ts/utils.ts';
 import { getReign } from 'src/ts/shared-utils.ts';
 import { useDocument } from 'vuefire';
-import { useFunction } from 'boot/vuefire.ts';
+import { useFunctionAsync } from 'boot/vuefire.ts';
 import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 const route = useRoute();
@@ -228,7 +228,8 @@ async function publish() {
       publishedAt: new Date(),
     });
     Loading.show({ message: '寄發通知郵件' });
-    await useFunction('publishDocument')({ docId: (docu.value as any).id });
+    const publishDocumentFn = await useFunctionAsync('publishDocument');
+    await publishDocumentFn({ docId: (docu.value as any).id });
   } catch (e) {
     notifyError('發布失敗', e);
     Loading.hide();
