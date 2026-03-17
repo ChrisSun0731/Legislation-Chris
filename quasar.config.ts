@@ -74,39 +74,49 @@ export default defineConfig((ctx) => {
           },
         };
         viteConf.build!.rollupOptions = {
+          ...viteConf.build!.rollupOptions,
           output: {
+            ...viteConf.build!.rollupOptions?.output,
             manualChunks(id) {
+              // Only apply manualChunks for client build
+              if (viteConf.build!.ssr) {
+                return;
+              }
+
               // Firebase SDK
-              if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+              if (id.includes('node_modules/firebase/')) {
                 return 'vendor-firebase';
               }
+              if (id.includes('node_modules/@firebase/')) {
+                return 'vendor-firebase-internal';
+              }
               // Quasar framework internals
-              if (id.includes('node_modules/quasar') || id.includes('node_modules/@quasar')) {
+              if (id.includes('node_modules/quasar/') || id.includes('node_modules/@quasar/')) {
                 return 'vendor-quasar';
               }
               // Diff / text-comparison libraries (used in legislation diff view)
               if (
-                id.includes('node_modules/diff-match-patch') ||
-                id.includes('node_modules/diff') ||
-                id.includes('node_modules/fast-diff')
+                id.includes('node_modules/diff-match-patch/') ||
+                id.includes('node_modules/diff/') ||
+                id.includes('node_modules/fast-diff/')
               ) {
                 return 'vendor-diff';
               }
               // Drag-and-drop
-              if (id.includes('node_modules/vue-draggable-plus') || id.includes('node_modules/sortablejs')) {
+              if (id.includes('node_modules/vue-draggable-plus/') || id.includes('node_modules/sortablejs/')) {
                 return 'vendor-draggable';
               }
               // Algolia search
-              if (id.includes('node_modules/algoliasearch') || id.includes('node_modules/@algolia')) {
+              if (id.includes('node_modules/algoliasearch/') || id.includes('node_modules/@algolia/')) {
                 return 'vendor-algolia';
               }
               // Vue ecosystem (vue, vue-router, pinia, vuefire)
               if (
                 id.includes('node_modules/vue/') ||
-                id.includes('node_modules/vue-router') ||
-                id.includes('node_modules/pinia') ||
-                id.includes('node_modules/vuefire') ||
-                id.includes('node_modules/@vueuse')
+                id.includes('node_modules/vue-router/') ||
+                id.includes('node_modules/pinia/') ||
+                id.includes('node_modules/vuefire/') ||
+                id.includes('node_modules/@vueuse/')
               ) {
                 return 'vendor-vue';
               }
