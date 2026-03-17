@@ -246,23 +246,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { useLegislation } from 'src/ts/model-converters.ts';
+import { computed, ref, reactive, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { legislationDocument } from 'src/ts/model-converters.ts';
 import { copyLink, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
 import * as models from 'src/ts/models.ts';
 import { ContentType } from 'src/ts/models.ts';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
 import DraftAmendmentDiffPrint from 'components/legislation/DraftAmendmentDiffPrint.vue';
 import { useDraftAmendmentStore } from 'src/pages/legislation/draft-amendment';
-import type { AmendmentType, DraftContent } from 'src/pages/legislation/draft-amendment';
+import type { AmendmentType, DraftContent, DraftImportPayload } from 'src/pages/legislation/draft-amendment';
 import { VueDraggable } from 'vue-draggable-plus';
-import { Dialog, exportFile, Dark } from 'quasar';
+import { Dialog, exportFile } from 'quasar';
 import InlineDiffRenderer from 'components/legislation/InlineDiffRenderer.vue';
 import { useVueToPrint } from 'vue-to-print';
+import { useDocument } from 'vuefire';
 
 const route = useRoute();
-const legislation = useLegislation(route.params.id as string);
+const router = useRouter();
+const legislation = useDocument(computed(() => legislationDocument(route.params.id as string)));
 const amendmentStore = useDraftAmendmentStore();
 
 const step = ref(1);
@@ -293,12 +295,58 @@ const { handlePrint: printPdf } = useVueToPrint({
   },
 });
 
-const generateId = () => Math.random().toString(36).substring(2, 9);
+// Holds pending import data when redirecting to a different legislation
+const pendingImportData = ref<DraftImportPayload | null>(null);
 
-// Setup drafts on load
-onMounted(() => {
-  amendmentStore.loadDrafts(route.params.id as string);
+// Setup drafts on load or route parameter change
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (!newId) return;
+    amendmentStore.loadDrafts(newId as string);
+
+    const pendingImport = window.sessionStorage.getItem('pendingImport');
+    if (pendingImport) {
+      window.sessionStorage.removeItem('pendingImport');
+      try {
+        const data = JSON.parse(pendingImport);
+        if (data.legislationId === newId) {
+          // Store for when legislation data is ready
+          pendingImportData.value = data;
+        } else {
+          Dialog.create({
+            title: '匯入失敗',
+            message: '嘗試自動匯入草案時發生法規 ID 不一致的問題。',
+            color: 'negative',
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse pending import', e);
+      }
+    }
+  },
+  { immediate: true }
+);
+
+// Once legislation data arrives, process the pending import
+watch(legislation, (newLegislation) => {
+  if (pendingImportData.value && newLegislation && route.params.id === pendingImportData.value.legislationId) {
+    const data = pendingImportData.value;
+    pendingImportData.value = null;
+    processImportData(data);
+  }
 });
+
+// Sync originalContent from live Firestore data to avoid stale clause text
+watch(
+  [legislation, () => amendmentStore.activeDraftId],
+  ([newLegislation, newDraftId]) => {
+    if (!newDraftId || !newLegislation || amendmentStore.amendmentType !== 'partial') return;
+
+    amendmentStore.syncPartialContentWithLive(newLegislation.content);
+  },
+  { immediate: false }
+);
 
 // Watcher to auto-save to local storage whenever there are modifications
 watch(
@@ -315,6 +363,47 @@ function triggerImport() {
   fileInput.value?.click();
 }
 
+function processImportData(data: DraftImportPayload) {
+  try {
+    const currentLegislationId = route.params.id as string;
+    const importResult = amendmentStore.importDraftPayload(currentLegislationId, data, legislation.value?.content || []);
+
+    if (importResult.status === 'redirect') {
+      Dialog.create({
+        title: '匯入轉向',
+        message: '此草案檔屬於另一部法規（ID: ' + importResult.legislationId + '）。即將為您重新導向至該法規的草案編輯頁面並自動匯入...',
+        color: 'warning'
+      }).onOk(() => {
+        window.sessionStorage.setItem('pendingImport', JSON.stringify(data));
+        void router.push(`/legislation/${importResult.legislationId}/amendment`);
+      });
+      return;
+    }
+
+    Dialog.create({
+      title: '匯入成功',
+      message: `已成功匯入草案「${importResult.name}」！`,
+      color: 'positive',
+    });
+
+    if (fileInput.value) fileInput.value.value = '';
+  } catch (err: any) {
+    console.error(err);
+
+    let message = '無法解析草案檔案內容，格式可能不正確或已毀損。';
+    if (err instanceof Error && err.message === 'Unsupported draft version') {
+      message = '不支援此草案版本，請確認檔案來源或聯絡系統管理員。';
+    }
+
+    Dialog.create({
+      title: '匯入失敗',
+      message: message,
+      color: 'negative',
+    });
+    if (fileInput.value) fileInput.value.value = '';
+  }
+}
+
 function onImportFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
@@ -323,66 +412,12 @@ function onImportFile(event: Event) {
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target?.result as string);
-
-      if (data.version !== 1) {
-        throw new Error('Unsupported draft version');
-      }
-
-      if (!data.amendmentType || (data.amendmentType !== 'partial' && data.amendmentType !== 'full')) {
-        throw new Error('Invalid amendmentType');
-      }
-
-      const name = data.name || `${new Date().toLocaleDateString('sv-SE')} 匯入修正草案`;
-
-      if (data.amendmentType === 'full') {
-        const fullContent = data.fullContent || [];
-        amendmentStore.createNewDraft(route.params.id as string, name, 'full', fullContent);
-      } else {
-        const importedPartial = data.partialContent || [];
-
-        // Reconstruct full partial list with original content as base
-        const initialPartial = (legislation.value?.content || []).map((c) => ({
-          id: generateId(),
-          status: 'unchanged',
-          originalIndex: c.index,
-          originalContent: JSON.parse(JSON.stringify(c)),
-          current: JSON.parse(JSON.stringify(c)),
-          comment: '',
-        })) as DraftContent[];
-
-        // Apply imported overrides
-        for (const imported of importedPartial) {
-          if (imported.status === 'modified' || imported.status === 'deleted') {
-            const index = initialPartial.findIndex((p) => p.originalIndex === imported.originalIndex);
-            if (index !== -1) {
-              initialPartial[index] = imported;
-            }
-          } else if (imported.status === 'added') {
-            initialPartial.push(imported); // Append added items to the end since we don't know their original insert location
-          }
-        }
-
-        amendmentStore.createNewDraft(route.params.id as string, name, 'partial', [], initialPartial);
-      }
-
-      Dialog.create({
-        title: '匯入成功',
-        message: `已成功匯入草案「${name}」！`,
-        color: 'positive',
-      });
-
-      if (fileInput.value) fileInput.value.value = '';
+      processImportData(data);
     } catch (err: any) {
       console.error(err);
-
-      let message = '無法解析草案檔案內容，格式可能不正確或已毀損。';
-      if (err instanceof Error && err.message === 'Unsupported draft version') {
-        message = '不支援此草案版本，請確認檔案來源或聯絡系統管理員。';
-      }
-
       Dialog.create({
         title: '匯入失敗',
-        message: message,
+        message: '無法解析草案檔案內容，格式可能不正確或已毀損。',
         color: 'negative',
       });
       if (fileInput.value) fileInput.value.value = '';
@@ -421,19 +456,7 @@ function promptDraftType(name: string) {
     cancel: true,
     persistent: true,
   }).onOk((type: AmendmentType) => {
-    if (type === 'full') {
-      amendmentStore.createNewDraft(route.params.id as string, name, 'full', JSON.parse(JSON.stringify(legislation.value?.content || [])));
-    } else {
-      const initialPartial = (legislation.value?.content || []).map((c) => ({
-        id: generateId(),
-        status: 'unchanged',
-        originalIndex: c.index,
-        originalContent: JSON.parse(JSON.stringify(c)),
-        current: JSON.parse(JSON.stringify(c)),
-        comment: '',
-      })) as DraftContent[];
-      amendmentStore.createNewDraft(route.params.id as string, name, 'partial', [], initialPartial);
-    }
+    amendmentStore.createDraftFromLegislation(route.params.id as string, name, type, legislation.value?.content || []);
     step.value = 2; // Move to editor
   });
 }
@@ -505,22 +528,16 @@ function editPartialContent(index: number) {
 }
 
 function markPartialDeleted(index: number) {
-  const item = amendmentStore.partialContent[index]!;
-  if (item.status === 'unchanged' || item.status === 'modified') {
-    item.status = 'deleted';
-  }
+  amendmentStore.markPartialDeleted(index);
 }
 
 function restorePartial(index: number) {
-  const item = amendmentStore.partialContent[index]!;
   Dialog.create({
     title: '復原',
     message: '確定要還原針對這條文的修改嗎？',
     cancel: true,
   }).onOk(() => {
-    item.status = 'unchanged';
-    item.current = JSON.parse(JSON.stringify(item.originalContent));
-    item.comment = '';
+    amendmentStore.restorePartial(index);
   });
 }
 
@@ -530,7 +547,7 @@ function removePartial(index: number) {
     message: '確定要刪除這筆新增的內容嗎？',
     cancel: true,
   }).onOk(() => {
-    amendmentStore.partialContent.splice(index, 1);
+    amendmentStore.removePartial(index);
   });
 }
 
@@ -568,8 +585,7 @@ function removeContent(index: number) {
     message: '確定要刪除這筆內容嗎？',
     cancel: true,
   }).onOk(() => {
-    amendmentStore.fullContent.splice(index, 1);
-    rearrangeFull();
+    amendmentStore.removeFullContent(index);
   });
 }
 
@@ -604,7 +620,7 @@ function submitContent() {
   if (targetContent.isPartial) {
     if (contentAction.value === 'add') {
       const newItem: DraftContent = {
-        id: generateId(),
+        id: amendmentStore.createDraftItemId(),
         status: 'added',
         current: JSON.parse(JSON.stringify(targetContent)),
         comment: '',
@@ -643,19 +659,11 @@ function submitContent() {
 // Exports
 
 function exportJson() {
-  const activeDraft = amendmentStore.drafts.find((d) => d.id === amendmentStore.activeDraftId);
-  const draftName = activeDraft?.name || '未命名草案';
-  const legislationId = route.params.id as string;
+  const draftName = amendmentStore.getActiveDraftName();
+  const dataPayload = amendmentStore.buildActiveDraftExportPayload(route.params.id as string);
 
   const data = JSON.stringify(
-    {
-      version: 1,
-      legislationId,
-      name: draftName,
-      amendmentType: amendmentStore.amendmentType,
-      partialContent: amendmentStore.amendmentType === 'partial' ? amendmentStore.partialContent.filter((c) => c.status !== 'unchanged') : undefined,
-      fullContent: amendmentStore.amendmentType === 'full' ? amendmentStore.fullContent : undefined,
-    },
+    dataPayload,
     null,
     2,
   );

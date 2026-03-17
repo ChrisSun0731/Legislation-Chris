@@ -22,6 +22,29 @@ export interface DraftDocument {
   fullContent: LegislationContent[];
 }
 
+export interface DraftImportPayload {
+  version: number;
+  legislationId?: string;
+  name?: string;
+  amendmentType?: AmendmentType;
+  partialContent?: DraftContent[];
+  fullContent?: LegislationContent[];
+}
+
+export type DraftImportResult =
+  | {
+      status: 'imported';
+      name: string;
+    }
+  | {
+      status: 'redirect';
+      legislationId: string;
+    };
+
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export const useDraftAmendmentStore = defineStore('draft-amendment', () => {
   const drafts = ref<DraftDocument[]>([]);
   const activeDraftId = ref<string | null>(null);
@@ -30,6 +53,29 @@ export const useDraftAmendmentStore = defineStore('draft-amendment', () => {
   const amendmentType = ref<AmendmentType | null>(null);
   const partialContent = ref<DraftContent[]>([]);
   const fullContent = ref<LegislationContent[]>([]);
+
+  const generateId = () => Math.random().toString(36).substring(2, 9);
+
+  const createDraftItemId = () => generateId();
+
+  const createInitialPartialContent = (baseContent: LegislationContent[]): DraftContent[] => {
+    return baseContent.map((content) => ({
+      id: generateId(),
+      status: 'unchanged',
+      originalIndex: content.index,
+      originalContent: deepClone(content),
+      current: deepClone(content),
+      comment: '',
+    }));
+  };
+
+  const createDraftFromLegislation = (legislationId: string, name: string, type: AmendmentType, baseContent: LegislationContent[]) => {
+    if (type === 'full') {
+      createNewDraft(legislationId, name, 'full', deepClone(baseContent));
+      return;
+    }
+    createNewDraft(legislationId, name, 'partial', [], createInitialPartialContent(baseContent));
+  };
 
   const loadDrafts = (legislationId: string) => {
     const key = `draft-amendments-${legislationId}`;
@@ -81,8 +127,8 @@ export const useDraftAmendmentStore = defineStore('draft-amendment', () => {
     if (draft) {
       activeDraftId.value = draft.id;
       amendmentType.value = draft.amendmentType;
-      partialContent.value = JSON.parse(JSON.stringify(draft.partialContent)); // Work on a clone
-      fullContent.value = JSON.parse(JSON.stringify(draft.fullContent)); // Work on a clone
+      partialContent.value = deepClone(draft.partialContent); // Work on a clone
+      fullContent.value = deepClone(draft.fullContent); // Work on a clone
     }
   };
 
@@ -109,6 +155,117 @@ export const useDraftAmendmentStore = defineStore('draft-amendment', () => {
     }
   };
 
+  const syncPartialContentWithLive = (liveContent: LegislationContent[]) => {
+    if (amendmentType.value !== 'partial') return;
+    for (const item of partialContent.value) {
+      const liveClause = liveContent.find((content) => content.index === item.originalIndex);
+      if (!liveClause) continue;
+      item.originalContent = deepClone(liveClause);
+      if (item.status === 'unchanged') {
+        item.current = deepClone(liveClause);
+      }
+    }
+  };
+
+  const markPartialDeleted = (index: number) => {
+    const item = partialContent.value[index];
+    if (!item) return;
+    if (item.status === 'unchanged' || item.status === 'modified') {
+      item.status = 'deleted';
+    }
+  };
+
+  const restorePartial = (index: number) => {
+    const item = partialContent.value[index];
+    if (!item) return;
+    item.status = 'unchanged';
+    if (item.originalContent) {
+      item.current = deepClone(item.originalContent);
+    }
+    item.comment = '';
+  };
+
+  const removePartial = (index: number) => {
+    partialContent.value.splice(index, 1);
+  };
+
+  const removeFullContent = (index: number) => {
+    fullContent.value.splice(index, 1);
+    for (let i = 0; i < fullContent.value.length; i++) {
+      fullContent.value[i]!.index = i;
+    }
+  };
+
+  const ensureImportedPartialIds = (items: DraftContent[]) => {
+    for (const item of items) {
+      if (!item.id) item.id = generateId();
+    }
+    return items;
+  };
+
+  const importDraftPayload = (currentLegislationId: string, payload: DraftImportPayload, baseContent: LegislationContent[]): DraftImportResult => {
+    if (payload.version !== 1) {
+      throw new Error('Unsupported draft version');
+    }
+
+    if (!payload.amendmentType || (payload.amendmentType !== 'partial' && payload.amendmentType !== 'full')) {
+      throw new Error('Invalid amendmentType');
+    }
+
+    if (payload.legislationId && payload.legislationId !== currentLegislationId) {
+      return {
+        status: 'redirect',
+        legislationId: payload.legislationId,
+      };
+    }
+
+    const name = payload.name || `${new Date().toLocaleDateString('sv-SE')} 匯入修正草案`;
+
+    if (payload.amendmentType === 'full') {
+      createNewDraft(currentLegislationId, name, 'full', deepClone(payload.fullContent ?? []));
+      return { status: 'imported', name };
+    }
+
+    const importedPartial = ensureImportedPartialIds(deepClone(payload.partialContent ?? []));
+    const hasFullSnapshot = importedPartial.some((item) => item.status === 'unchanged');
+
+    if (hasFullSnapshot) {
+      createNewDraft(currentLegislationId, name, 'partial', [], importedPartial);
+      return { status: 'imported', name };
+    }
+
+    const initialPartial = createInitialPartialContent(baseContent);
+    for (const imported of importedPartial) {
+      if (imported.status === 'modified' || imported.status === 'deleted') {
+        const index = initialPartial.findIndex((item) => item.originalIndex === imported.originalIndex);
+        if (index !== -1) {
+          initialPartial[index] = imported;
+        }
+      } else if (imported.status === 'added') {
+        initialPartial.push(imported);
+      }
+    }
+
+    createNewDraft(currentLegislationId, name, 'partial', [], initialPartial);
+    return { status: 'imported', name };
+  };
+
+  const getActiveDraftName = () => {
+    return drafts.value.find((draft) => draft.id === activeDraftId.value)?.name || '未命名草案';
+  };
+
+  const buildActiveDraftExportPayload = (legislationId: string) => {
+    const activeDraftName = getActiveDraftName();
+    return {
+      version: 1,
+      legislationId,
+      name: activeDraftName,
+      amendmentType: amendmentType.value,
+      partialContent: amendmentType.value === 'partial' ? partialContent.value.filter((item) => item.status !== 'unchanged') : undefined,
+      fullContent: amendmentType.value === 'full' ? fullContent.value : undefined,
+    };
+  };
+
   const deleteDraft = (legislationId: string, id: string) => {
     drafts.value = drafts.value.filter((d) => d.id !== id);
     if (activeDraftId.value === id) {
@@ -133,18 +290,27 @@ export const useDraftAmendmentStore = defineStore('draft-amendment', () => {
     }
   };
 
-  const generateId = () => Math.random().toString(36).substring(2, 9);
-
   return {
     drafts,
     activeDraftId,
     amendmentType,
     partialContent,
     fullContent,
+    createDraftItemId,
+    createInitialPartialContent,
+    createDraftFromLegislation,
     loadDrafts,
     createNewDraft,
     selectDraft,
     saveActiveDraft,
+    syncPartialContentWithLive,
+    markPartialDeleted,
+    restorePartial,
+    removePartial,
+    removeFullContent,
+    importDraftPayload,
+    getActiveDraftName,
+    buildActiveDraftExportPayload,
     deleteDraft,
     quitDraft,
     renameDraft,
