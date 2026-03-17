@@ -24,11 +24,11 @@ const diffs = computed(() => {
 
 <style scoped>
 .diff-added {
-  color: #ff5555;
+  color: red;
   text-decoration: underline;
 }
 .diff-removed {
   text-decoration: line-through;
-  color: #ff5555;
+  color: red;
 }
 </style>

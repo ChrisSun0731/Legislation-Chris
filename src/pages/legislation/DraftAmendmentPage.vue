@@ -23,13 +23,18 @@
           <div class="q-pa-md">
             <div class="row items-center q-mb-md">
               <div class="text-h6 col">已儲存的修正草案</div>
-              <q-btn color="primary" label="新增草案" icon="add" @click="promptNewDraft" />
+              <q-btn class="q-mr-sm" color="primary" label="新增草案" icon="add" @click="promptNewDraft" />
+              <q-btn color="secondary" outline label="匯入草案" icon="upload" @click="triggerImport" />
+              <input type="file" ref="fileInput" accept=".ckla" style="display: none" @change="onImportFile" />
             </div>
 
             <div v-if="amendmentStore.drafts.length === 0" class="text-center q-pa-xl text-grey-7">
               <q-icon name="description" size="48px" class="q-mb-md" />
               <div>目前沒有已儲存的草案。</div>
-              <q-btn color="primary" outline label="立即建立一份新草案" class="q-mt-md" @click="promptNewDraft" />
+              <div class="row q-gutter-md justify-center q-mt-md">
+                <q-btn color="primary" outline label="立即建立一份新草案" @click="promptNewDraft" />
+                <q-btn color="secondary" outline label="匯入草案檔 (.ckla)" icon="upload" @click="triggerImport" />
+              </div>
             </div>
 
             <q-list v-else separator bordered class="rounded-borders">
@@ -190,7 +195,7 @@
           <div class="text-center q-pa-lg">
             <div class="text-h6 q-mb-xl">您已完成草案編輯！請選擇下一步：</div>
             <div class="row q-gutter-md justify-center">
-              <q-btn color="primary" icon="download" label="匯出為 JSON" @click="exportJson" size="lg" />
+              <q-btn color="primary" icon="download" label="匯出草案檔 (.ckla)" @click="exportJson" size="lg" />
               <q-btn color="secondary" icon="print" label="列印對照表 (PDF)" @click="printPdf" size="lg" />
             </div>
             <div class="q-mt-xl text-caption">若您使用列印，請在瀏覽器列印對話框中選擇「另存為 PDF」。</div>
@@ -263,6 +268,7 @@ const amendmentStore = useDraftAmendmentStore();
 const step = ref(1);
 const printing = ref(false);
 const printContent = ref();
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const { handlePrint: printPdf } = useVueToPrint({
   content: printContent,
@@ -304,6 +310,86 @@ watch(
   },
   { deep: true },
 );
+
+function triggerImport() {
+  fileInput.value?.click();
+}
+
+function onImportFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target?.result as string);
+
+      if (data.version !== 1) {
+        throw new Error('Unsupported draft version');
+      }
+
+      if (!data.amendmentType || (data.amendmentType !== 'partial' && data.amendmentType !== 'full')) {
+        throw new Error('Invalid amendmentType');
+      }
+
+      const name = data.name || `${new Date().toLocaleDateString('sv-SE')} 匯入修正草案`;
+
+      if (data.amendmentType === 'full') {
+        const fullContent = data.fullContent || [];
+        amendmentStore.createNewDraft(route.params.id as string, name, 'full', fullContent);
+      } else {
+        const importedPartial = data.partialContent || [];
+
+        // Reconstruct full partial list with original content as base
+        const initialPartial = (legislation.value?.content || []).map((c) => ({
+          id: generateId(),
+          status: 'unchanged',
+          originalIndex: c.index,
+          originalContent: JSON.parse(JSON.stringify(c)),
+          current: JSON.parse(JSON.stringify(c)),
+          comment: '',
+        })) as DraftContent[];
+
+        // Apply imported overrides
+        for (const imported of importedPartial) {
+          if (imported.status === 'modified' || imported.status === 'deleted') {
+            const index = initialPartial.findIndex((p) => p.originalIndex === imported.originalIndex);
+            if (index !== -1) {
+              initialPartial[index] = imported;
+            }
+          } else if (imported.status === 'added') {
+            initialPartial.push(imported); // Append added items to the end since we don't know their original insert location
+          }
+        }
+
+        amendmentStore.createNewDraft(route.params.id as string, name, 'partial', [], initialPartial);
+      }
+
+      Dialog.create({
+        title: '匯入成功',
+        message: `已成功匯入草案「${name}」！`,
+        color: 'positive',
+      });
+
+      if (fileInput.value) fileInput.value.value = '';
+    } catch (err: any) {
+      console.error(err);
+
+      let message = '無法解析草案檔案內容，格式可能不正確或已毀損。';
+      if (err instanceof Error && err.message === 'Unsupported draft version') {
+        message = '不支援此草案版本，請確認檔案來源或聯絡系統管理員。';
+      }
+
+      Dialog.create({
+        title: '匯入失敗',
+        message: message,
+        color: 'negative',
+      });
+      if (fileInput.value) fileInput.value.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
 
 function promptNewDraft() {
   Dialog.create({
@@ -559,9 +645,12 @@ function submitContent() {
 function exportJson() {
   const activeDraft = amendmentStore.drafts.find((d) => d.id === amendmentStore.activeDraftId);
   const draftName = activeDraft?.name || '未命名草案';
+  const legislationId = route.params.id as string;
 
   const data = JSON.stringify(
     {
+      version: 1,
+      legislationId,
       name: draftName,
       amendmentType: amendmentStore.amendmentType,
       partialContent: amendmentStore.amendmentType === 'partial' ? amendmentStore.partialContent.filter((c) => c.status !== 'unchanged') : undefined,
@@ -571,9 +660,9 @@ function exportJson() {
     2,
   );
 
-  const ok = exportFile(`${legislation.value?.name || '草案'}_${draftName}.json`, data);
+  const ok = exportFile(`${legislation.value?.name || '草案'}_${draftName}.ckla`, data);
   if (!ok) {
-    Dialog.create({ message: 'JSON 匯出失敗。' });
+    Dialog.create({ message: '草案匯出失敗。' });
   }
 }
 </script>
