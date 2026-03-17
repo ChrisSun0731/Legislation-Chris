@@ -31,7 +31,7 @@
               :new-string="selectedSnapshotText"
               no-diff-line-feed
               :old-string="baselineSnapshotText"
-              output-format="side-by-side"
+              :output-format="$q.screen.lt.md ? 'line-by-line' : 'side-by-side'"
               :theme="Dark.isActive ? 'dark' : 'light'"
               force-inline-comparison
             />
