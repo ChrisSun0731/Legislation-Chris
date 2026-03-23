@@ -27,24 +27,36 @@
                 <div class="text-bold">
                   {{ change.current.title }}<template v-if="change.current.subtitle"> 【{{ change.current.subtitle }}】</template>
                 </div>
-                <div style="white-space: break-spaces">
+                <div>
                   <InlineDiffRenderer
                     v-if="change.status === 'modified'"
                     :old-string="change.originalContent?.content || ''"
                     :new-string="change.current.content || ''"
+                    render-lines
                   />
-                  <span v-else>{{ change.current.content }}</span>
+                  <InlineDiffRenderer
+                    v-else
+                    :old-string="change.current.content || ''"
+                    :new-string="change.current.content || ''"
+                    render-lines
+                  />
                 </div>
               </div>
               <div v-else>
                 <div class="text-bold">{{ change.current.title }} {{ change.current.subtitle }}</div>
-                <div v-if="change.current.content" style="white-space: break-spaces">
+                <div v-if="change.current.content">
                   <InlineDiffRenderer
                     v-if="change.status === 'modified'"
                     :old-string="change.originalContent?.content || ''"
                     :new-string="change.current.content || ''"
+                    render-lines
                   />
-                  <span v-else>{{ change.current.content }}</span>
+                  <InlineDiffRenderer
+                    v-else
+                    :old-string="change.current.content || ''"
+                    :new-string="change.current.content || ''"
+                    render-lines
+                  />
                 </div>
               </div>
             </td>
@@ -61,7 +73,13 @@
                   {{ change.originalContent?.title
                   }}<template v-if="change.originalContent?.subtitle"> 【{{ change.originalContent?.subtitle }}】</template>
                 </div>
-                <div style="white-space: break-spaces">{{ change.originalContent?.content }}</div>
+                <div>
+                  <InlineDiffRenderer
+                    :old-string="change.originalContent?.content || ''"
+                    :new-string="change.originalContent?.content || ''"
+                    render-lines
+                  />
+                </div>
               </div>
               <div v-else>
                 <div class="text-bold">{{ change.originalContent?.title }} {{ change.originalContent?.subtitle }}</div>
@@ -94,7 +112,13 @@
                   <div class="text-bold">
                     {{ content.title }}<template v-if="content.subtitle"> 【{{ content.subtitle }}】</template>
                   </div>
-                  <div style="white-space: break-spaces">{{ content.content }}</div>
+                  <div>
+                    <InlineDiffRenderer
+                      :old-string="content.content || ''"
+                      :new-string="content.content || ''"
+                      render-lines
+                    />
+                  </div>
                 </div>
                 <div v-else>
                   <div class="text-bold">{{ content.title }} {{ content.subtitle }}</div>

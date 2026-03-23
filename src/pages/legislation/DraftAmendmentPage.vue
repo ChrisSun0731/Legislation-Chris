@@ -137,20 +137,27 @@
 
                   <!-- Content Display -->
                   <div class="q-pl-md">
-                    <div v-if="draftInfo.status === 'unchanged'" style="white-space: break-spaces">
-                      {{ draftInfo.current.content }}
+                    <div v-if="draftInfo.status === 'unchanged'" class="q-mt-sm">
+                      <InlineDiffRenderer :old-string="draftInfo.current.content || ''" :new-string="draftInfo.current.content || ''" render-lines />
                     </div>
-                    <div v-else-if="draftInfo.status === 'deleted'" class="text-strike text-grey-7" style="white-space: break-spaces">
-                      {{ draftInfo.originalContent?.content }}
+                    <div v-else-if="draftInfo.status === 'deleted'" class="text-strike text-grey-7 q-mt-sm">
+                      <InlineDiffRenderer
+                        :old-string="draftInfo.originalContent?.content || ''"
+                        :new-string="draftInfo.originalContent?.content || ''"
+                        render-lines
+                      />
                     </div>
                     <div v-else-if="draftInfo.status === 'modified'" class="q-mt-sm">
-                      <InlineDiffRenderer :old-string="draftInfo.originalContent?.content || ''" :new-string="draftInfo.current.content || ''" />
+                      <InlineDiffRenderer
+                        :old-string="draftInfo.originalContent?.content || ''"
+                        :new-string="draftInfo.current.content || ''"
+                        render-lines
+                      />
                     </div>
-                    <div v-else-if="draftInfo.status === 'added'" class="text-positive" style="white-space: break-spaces">
-                      {{ draftInfo.current.content }}
+                    <div v-else-if="draftInfo.status === 'added'" class="text-positive q-mt-sm">
+                      <InlineDiffRenderer :old-string="draftInfo.current.content || ''" :new-string="draftInfo.current.content || ''" render-lines />
                     </div>
 
-                    <!-- Comment Input -->
                     <div v-if="draftInfo.status !== 'unchanged'" class="q-mt-sm">
                       <q-input v-model="draftInfo.comment" type="textarea" label="修正說明 / 理由" outlined dense autogrow />
                     </div>
@@ -325,7 +332,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Once legislation data arrives, process the pending import
@@ -345,7 +352,7 @@ watch(
 
     amendmentStore.syncPartialContentWithLive(newLegislation.content);
   },
-  { immediate: false }
+  { immediate: false },
 );
 
 // Watcher to auto-save to local storage whenever there are modifications
@@ -372,7 +379,7 @@ function processImportData(data: DraftImportPayload) {
       Dialog.create({
         title: '匯入轉向',
         message: '此草案檔屬於另一部法規（ID: ' + importResult.legislationId + '）。即將為您重新導向至該法規的草案編輯頁面並自動匯入...',
-        color: 'warning'
+        color: 'warning',
       }).onOk(() => {
         window.sessionStorage.setItem('pendingImport', JSON.stringify(data));
         void router.push(`/legislation/${importResult.legislationId}/amendment`);
@@ -662,11 +669,7 @@ function exportJson() {
   const draftName = amendmentStore.getActiveDraftName();
   const dataPayload = amendmentStore.buildActiveDraftExportPayload(route.params.id as string);
 
-  const data = JSON.stringify(
-    dataPayload,
-    null,
-    2,
-  );
+  const data = JSON.stringify(dataPayload, null, 2);
 
   const ok = exportFile(`${legislation.value?.name || '草案'}_${draftName}.ckla`, data);
   if (!ok) {
