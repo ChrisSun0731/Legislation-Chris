@@ -5,6 +5,7 @@ import type { Document, Legislation, MailingList } from './models';
 import {
   convertContentFromFirebase,
   convertContentToFirebase,
+  convertHistoryToFirebase,
   convertDocumentToFirebase,
   DocumentConfidentiality,
   DocumentSpecificIdentity,
@@ -76,9 +77,9 @@ export const legislationConverter: FirestoreDataConverter<Legislation | null> = 
       createdAt: Timestamp.fromDate(legislation.createdAt),
       name: legislation.name,
       history: legislation.history.map((history) => {
-        history.amendedAt = Timestamp.fromDate(history.amendedAt) as any;
-        if (!history.totalAmendment) delete history.totalAmendment;
-        return history;
+        const mapped = convertHistoryToFirebase(history);
+        mapped.amendedAt = Timestamp.fromDate(mapped.amendedAt) as any;
+        return mapped;
       }),
       addendum: legislation.addendum?.map((addendum) => {
         addendum.createdAt = Timestamp.fromDate(addendum.createdAt) as any;

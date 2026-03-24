@@ -188,7 +188,7 @@
 import { useRoute, useRouter } from 'vue-router';
 import type { LegislationCategory, LegislationHistory, ResolutionUrl } from 'src/ts/models.ts';
 import * as models from 'src/ts/models.ts';
-import { ContentType, convertContentToFirebase } from 'src/ts/models.ts';
+import { ContentType, convertContentToFirebase, convertHistoryToFirebase } from 'src/ts/models.ts';
 import { historyContentDocument, legislationDocument, useLegislation } from 'src/ts/model-converters.ts';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
 import { copyLink, generateHistoryContentId, notifyError, notifySuccess, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
@@ -524,13 +524,7 @@ async function submitHistory(skipCheck: boolean = false) {
     },
     async () => {
       legislation.value!.history[targetHistory.index] = mappedHistory;
-      const newHistory = legislation
-        .value!.history.map((h) => {
-          const copy = { ...h } as any;
-          if (!copy.totalAmendment) delete copy.totalAmendment;
-          return copy;
-        })
-        .slice(0);
+      const newHistory = legislation.value!.history.map(convertHistoryToFirebase);
       await updateDoc(legislationDocument(id), { history: newHistory });
     },
   );
@@ -591,7 +585,7 @@ async function submit() {
   );
 }
 
-function removeProperty(property: string, object: object, translation: string) {
+function removeProperty(property: string, object: object, translation: string, afterDelete?: () => Promise<void>) {
   Dialog.create({
     title: `刪除${translation}`,
     message: `確定要刪除此${translation}嗎？`,
@@ -601,6 +595,7 @@ function removeProperty(property: string, object: object, translation: string) {
     Loading.show();
     try {
       await updateDoc(legislationDocument(route.params.id! as string), { [property]: arrayRemove(object) });
+      if (afterDelete) await afterDelete();
     } catch (e) {
       notifyError('刪除失敗', e);
       Loading.hide();
@@ -621,7 +616,11 @@ function removeAddendum(addendum: models.Addendum) {
 }
 
 function removeHistory(history: models.LegislationHistory) {
-  removeProperty('history', history, '立法沿革');
+  removeProperty('history', convertHistoryToFirebase(history), '立法沿革', async () => {
+    if (history.contentId) {
+      await deleteDoc(historyContentDocument(route.params.id! as string, history.contentId));
+    }
+  });
 }
 
 function removeAttachment(attachment: models.Attachment) {

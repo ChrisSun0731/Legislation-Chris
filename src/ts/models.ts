@@ -504,6 +504,18 @@ export function convertContentToFirebase(data: LegislationContent) {
   return content;
 }
 
+export function convertHistoryToFirebase(data: LegislationHistory) {
+  const history = {
+    brief: data.brief,
+    amendedAt: data.amendedAt,
+  } as any;
+  if (data.totalAmendment) history.totalAmendment = data.totalAmendment;
+  if (data.contentId) history.contentId = data.contentId;
+  if (data.link) history.link = data.link;
+  return history;
+}
+
+
 export function convertContentFromFirebase(data: any) {
   const content = { ...data } as LegislationContent;
   content.type = ContentType.VALUES[data.type as keyof typeof ContentType.VALUES];
