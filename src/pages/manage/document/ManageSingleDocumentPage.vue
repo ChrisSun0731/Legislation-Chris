@@ -139,6 +139,7 @@ import type { Attachment } from 'src/ts/models.ts';
 import { documentsCollection } from 'src/ts/model-converters.ts';
 import { arrayRemove, arrayUnion, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { date, Loading, useQuasar } from 'quasar';
+import JSConfetti from 'js-confetti';
 import ProEditor from 'components/ProEditor.vue';
 import { computed, reactive, ref } from 'vue';
 import DocumentDialog from 'components/DocumentDialog.vue';
@@ -156,6 +157,7 @@ import DocumentSeparator from 'components/DocumentSeparator.vue';
 
 const route = useRoute();
 const router = useRouter();
+const jsConfetti = new JSConfetti();
 const docuId = computed(() => doc(documentsCollection(), route.params.id! as string)); // dynamic id so we can auto reload during an id change
 const docu = useDocument(docuId);
 const content = ref('');
@@ -237,6 +239,7 @@ async function publish() {
   }
   Loading.hide();
   notifySuccess('成功發布公文');
+  void jsConfetti.addConfetti();
   await router.push(`/document/${(docu.value as any).id}`);
 }
 
