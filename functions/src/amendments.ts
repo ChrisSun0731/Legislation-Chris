@@ -21,18 +21,19 @@ function getApproverRoleForCategory(categoryId: string): string {
   // Mapping based on models.ts LegislationCategory and user requirements
   switch (categoryId) {
   case 'StudentCouncilOrder':
-    return 'Speaker';
+    return DocumentSpecificIdentity.Speaker.firebase;
   case 'JudicialCommitteeOrder':
-    return 'JudicialCommitteeChairman';
+    return DocumentSpecificIdentity.JudicialCommitteeChairman.firebase;
+  case 'VotingCommitteeOrder':
+    return DocumentSpecificIdentity.ElectoralCommitteeChairman.firebase;
   case 'Constitution':
   case 'Chairman':
   case 'ExecutiveDepartment':
   case 'StudentCouncil':
   case 'JudicialCommittee':
   case 'ExecutiveOrder':
-  case 'VotingCommitteeOrder':
   default:
-    return 'Chairman'; // fallback to Chairman
+    return DocumentSpecificIdentity.Chairman.firebase;
   }
 }
 
@@ -175,7 +176,7 @@ export const resolveAmendmentRequest = onCall(globalFunctionOptions, async (requ
       newContent = reqData.fullContent.map((c: any, i: number) => toFirebaseContent(c, i));
     } else {
       const isSequenceExport = reqData.partialContent.some((c: any) => c.status === 'unchanged');
-      
+
       if (isSequenceExport) {
         newContent = [];
         for (const change of reqData.partialContent) {
@@ -292,7 +293,7 @@ export const resolveAmendmentRequest = onCall(globalFunctionOptions, async (requ
         result.status as 'approved' | 'rejected',
         resolutionReason,
         docUrl,
-        legUrl
+        legUrl,
       ),
     };
     await mailTransport.sendMail(mailOptions).catch((e) => logger.error('Failed to send petitioner email', e));
