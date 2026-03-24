@@ -99,7 +99,9 @@
           >
             {{ content.title }} {{ content.subtitle }}
           </div>
-          <div v-else :class="['q-py-none', { 'text-strike': content.deleted }]">{{ content.title }} 【{{ content.subtitle }}】</div>
+          <div v-else :class="['q-py-none', { 'text-strike': content.deleted }]">
+            {{ content.title }} <span v-if="content.subtitle && !content.deleted">【{{ content.subtitle }}】</span>
+          </div>
         </q-item>
       </q-list>
     </q-scroll-area>
