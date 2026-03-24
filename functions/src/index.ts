@@ -23,6 +23,7 @@ import ical, { ICalCalendarMethod } from 'ical-generator';
 import { newMeetingNotice } from './mail/new-meeting-notice';
 import { SitemapStream } from 'sitemap';
 import { createGzip } from 'zlib';
+export { submitAmendmentRequest, resolveAmendmentRequest } from './amendments';
 import * as utf8 from 'utf8';
 import { DocumentSpecificIdentity, User } from '../../src/ts/models';
 import { convertToChineseDay, getCurrentReign } from '../../src/ts/shared-utils';

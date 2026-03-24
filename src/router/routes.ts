@@ -13,7 +13,10 @@ const routes: RouteRecordRaw[] = [
     // No SSR for draft amendment page
     path: '/legislation',
     component: () => import('layouts/MainLayout.vue'),
-    children: [{ path: ':id/amendment', component: () => import('pages/legislation/DraftAmendmentPage.vue') }],
+    children: [
+      { path: ':id/amendment', component: () => import('pages/legislation/DraftAmendmentPage.vue') },
+      { path: ':id/amendment/submit', component: () => import('pages/legislation/SubmitAmendmentPage.vue') },
+    ],
   },
   {
     path: '/manage',
@@ -42,6 +45,12 @@ const routes: RouteRecordRaw[] = [
         children: [
           { path: '', component: () => import('pages/manage/ManageAccountsPage.vue') },
           { path: 'mailing_list', component: () => import('pages/manage/ManageMailingList.vue') },
+        ],
+      },
+      {
+        path: 'amendments',
+        children: [
+          { path: ':id', component: () => import('pages/manage/amendments/AmendmentReviewPage.vue') },
         ],
       },
     ],

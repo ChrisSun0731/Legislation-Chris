@@ -34,12 +34,7 @@
                     :new-string="change.current.content || ''"
                     render-lines
                   />
-                  <InlineDiffRenderer
-                    v-else
-                    :old-string="change.current.content || ''"
-                    :new-string="change.current.content || ''"
-                    render-lines
-                  />
+                  <InlineDiffRenderer v-else :old-string="change.current.content || ''" :new-string="change.current.content || ''" render-lines />
                 </div>
               </div>
               <div v-else>
@@ -51,12 +46,7 @@
                     :new-string="change.current.content || ''"
                     render-lines
                   />
-                  <InlineDiffRenderer
-                    v-else
-                    :old-string="change.current.content || ''"
-                    :new-string="change.current.content || ''"
-                    render-lines
-                  />
+                  <InlineDiffRenderer v-else :old-string="change.current.content || ''" :new-string="change.current.content || ''" render-lines />
                 </div>
               </div>
             </td>
@@ -113,11 +103,7 @@
                     {{ content.title }}<template v-if="content.subtitle"> 【{{ content.subtitle }}】</template>
                   </div>
                   <div>
-                    <InlineDiffRenderer
-                      :old-string="content.content || ''"
-                      :new-string="content.content || ''"
-                      render-lines
-                    />
+                    <InlineDiffRenderer :old-string="content.content || ''" :new-string="content.content || ''" render-lines />
                   </div>
                 </div>
                 <div v-else>
@@ -182,17 +168,19 @@ const printablePartialChanges = computed(() => {
 }
 .print-table th,
 .print-table td {
-  border: 0.3px solid #000;
+  border: 0.3px solid rgba(0, 0, 0, 0.28);
   padding: 4px 8px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+
 .page-footer-border {
   padding: 0 !important;
   border: none !important;
-  border-top: 0.3px solid #000 !important;
+  border-top: 0.3px solid rgba(0, 0, 0, 0.28) !important;
   height: 0 !important;
 }
+
 .print-table th {
   text-align: center;
   font-weight: bold;
@@ -209,13 +197,37 @@ const printablePartialChanges = computed(() => {
   text-align-last: justify;
   width: 100%;
 }
+</style>
 
-/* Print specific styles */
+<style>
+/* Unscoped global styles to match Quasar body--dark which resides outside component scope */
+.body--dark .print-table th,
+.body--dark .print-table td {
+  border: 0.3px solid rgba(255, 255, 255, 0.28);
+}
+.body--dark .page-footer-border {
+  border-top: 0.3px solid rgba(255, 255, 255, 0.28) !important;
+}
+
 @media print {
   .print-container {
     width: 100%;
     margin: 0;
     padding: 0;
+  }
+  .print-table th,
+  .print-table td {
+    border: 0.3px solid #000 !important;
+  }
+  .page-footer-border {
+    border-top: 0.3px solid #000 !important;
+  }
+  .body--dark .print-table th,
+  .body--dark .print-table td {
+    border: 0.3px solid #000 !important;
+  }
+  .body--dark .page-footer-border {
+    border-top: 0.3px solid #000 !important;
   }
 }
 </style>

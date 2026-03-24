@@ -155,7 +155,7 @@
         <q-input v-model="targetHistory.brief" label="簡述" />
         <q-input ref="historyLinkRef" v-model="targetHistory.link" :rules="[isUrl]" label="發布公文連結" />
         <q-checkbox v-model="targetHistory.recordCurrent" :disable="recordCurrentDisabled" label="記錄目前法條內容為修改後內容" />
-        <div v-if="recordCurrentDisabled" class="text-caption text-warning q-mt-xs">此功能為記錄歷史比對用，若發現錯誤請聯絡系統管理員</div>
+        <div v-if="recordCurrentDisabled" class="text-caption text-warning q-mt-xs">此功能為記錄立法沿革比對用，若發現錯誤請聯絡系統管理員</div>
         <q-checkbox v-model="targetHistory.totalAmendment" label="全文修正" />
       </q-card-section>
       <q-card-actions align="right">

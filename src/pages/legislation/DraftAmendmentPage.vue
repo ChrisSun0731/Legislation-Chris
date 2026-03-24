@@ -197,13 +197,13 @@
             </VueDraggable>
           </div>
         </q-step>
-
-        <q-step :name="3" icon="print" title="匯出與列印" :disable="!amendmentStore.activeDraftId">
+        <q-step :name="3" icon="print" title="提交與匯出" :disable="!amendmentStore.activeDraftId">
           <div class="text-center q-pa-lg">
             <div class="text-h6 q-mb-xl">您已完成草案編輯！請選擇下一步：</div>
             <div class="row q-gutter-md justify-center">
-              <q-btn color="primary" icon="download" label="匯出草案檔 (.ckla)" @click="exportJson" size="lg" />
-              <q-btn color="secondary" icon="print" label="列印對照表 (PDF)" @click="printPdf" size="lg" />
+              <q-btn v-if="!!useCurrentUser()" color="positive" icon="send" label="進入草案送出程序" @click="goToSubmitPage" size="lg" />
+              <q-btn color="primary" icon="download" label="匯出草案檔 (.ckla)" @click="exportJson" size="lg" outline />
+              <q-btn color="secondary" icon="print" label="列印對照表 (PDF)" @click="printPdf" size="lg" outline />
             </div>
             <div class="q-mt-xl text-caption">若您使用列印，請在瀏覽器列印對話框中選擇「另存為 PDF」。</div>
           </div>
@@ -255,8 +255,8 @@
 <script setup lang="ts">
 import { computed, ref, reactive, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { legislationDocument } from 'src/ts/model-converters.ts';
 import { copyLink, translateNumber, translateNumberToChinese } from 'src/ts/utils.ts';
+import { legislationDocument } from 'src/ts/model-converters.ts';
 import * as models from 'src/ts/models.ts';
 import { ContentType } from 'src/ts/models.ts';
 import LegislationContent from 'components/legislation/LegislationContent.vue';
@@ -268,11 +268,16 @@ import { Dialog, exportFile } from 'quasar';
 import InlineDiffRenderer from 'components/legislation/InlineDiffRenderer.vue';
 import { useVueToPrint } from 'vue-to-print';
 import { useDocument } from 'vuefire';
+import { useCurrentUser } from 'src/ts/auth';
 
 const route = useRoute();
 const router = useRouter();
 const legislation = useDocument(computed(() => legislationDocument(route.params.id as string)));
 const amendmentStore = useDraftAmendmentStore();
+
+function goToSubmitPage() {
+  void router.push('/legislation/' + (route.params.id as string) + '/amendment/submit');
+}
 
 const step = ref(1);
 const printing = ref(false);

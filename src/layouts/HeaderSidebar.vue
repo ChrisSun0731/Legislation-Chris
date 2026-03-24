@@ -92,7 +92,7 @@ type Endpoint = {
 };
 
 onMounted(() => {
-  init();
+  void init();
 });
 const leftDrawerOpen = ref(false);
 const endpoints: Endpoint[] = [

@@ -42,5 +42,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSignedIn() && ('Chairman' in request.auth.token.roles || 'Speaker' in request.auth.token.roles || 'DeputySpeaker' in request.auth.token.roles);
     }
+    match /amendmentRequests/{requestId=**} {
+      allow read: if true;
+      allow update: if isSignedIn() && ('Chairman' in request.auth.token.roles || 'Speaker' in request.auth.token.roles || 'DeputySpeaker' in request.auth.token.roles || 'JudicialCommitteeChairman' in request.auth.token.roles);
+      allow create, delete: if false;
+    }
   }
 }
