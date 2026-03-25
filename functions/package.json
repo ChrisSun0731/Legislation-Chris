@@ -11,7 +11,7 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "main": "lib/functions/src/index.js",
   "dependencies": {
@@ -19,7 +19,7 @@
     "firebase-functions": "^7.2.2",
     "googleapis": "^171.4.0",
     "ical-generator": "^10.1.0",
-    "nodemailer": "^8.0.3",
+    "nodemailer": "^8.0.4",
     "sitemap": "^9.0.1",
     "utf8": "^3.0.0"
   },
