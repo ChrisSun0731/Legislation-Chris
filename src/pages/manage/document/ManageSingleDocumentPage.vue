@@ -137,7 +137,7 @@
 import { useRoute, useRouter } from 'vue-router';
 import type { Attachment } from 'src/ts/models.ts';
 import { documentsCollection } from 'src/ts/model-converters.ts';
-import { arrayRemove, arrayUnion, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { date, Loading, useQuasar } from 'quasar';
 import JSConfetti from 'js-confetti';
 import ProEditor from 'components/ProEditor.vue';
@@ -377,6 +377,12 @@ async function submitId() {
   docu.value!.idNumber = editingIdNumber.value;
   const newId = docu.value!.getFullId();
   try {
+    const existingDoc = await getDoc(doc(documentsCollection(), newId));
+    if (existingDoc.exists()) {
+      notifyError('該公文字號已存在，請使用其他公文字號');
+      Loading.hide();
+      return;
+    }
     await setDoc(doc(documentsCollection(), newId), docu.value);
     await router.push(newId);
     await deleteDoc(doc(documentsCollection(), oldId));
